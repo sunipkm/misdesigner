@@ -23,7 +23,7 @@ PlotMode = Literal['Angle', 'Mosaic']
 
 class LinePredictor(MisGrating):
     @staticmethod
-    def load(configfile: str, alpha: Optional[Numeric] = None, *, num_orders: Optional[int] = None, gamma_ofst: Optional[Numeric] = None) -> LinePredictor:
+    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> LinePredictor:
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
         ext = os.path.splitext(configfile)[-1].lower()
@@ -33,11 +33,11 @@ class LinePredictor(MisGrating):
         else:
             raise TypeError(
                 f"Invalid file extension {ext}. Please provide a .toml file.")
-        return LinePredictor(params.system, params.optics, params.instrument.alpha, gamma_ofst=params.instrument.gamma_ofst)
+        return LinePredictor(params.system, params.optics, params.instrument.alpha, gamma_ofst=params.instrument.gamma_ofst, input_wls=params.lines)
 
     def store(self, path: str, overwrite: bool = False):
         instr = MisGratingCfg(self.alpha, self.gamma_ofst)
-        params = MisInstrument(self.hmsVersion, self, instr, self._wls)
+        params = MisInstrument(self.hmsVersion, self, instr, self.input_wls)
         dirname = os.path.dirname(path)
         if len(dirname) > 0 and not os.path.exists(dirname):
             os.makedirs(dirname)
@@ -48,7 +48,7 @@ class LinePredictor(MisGrating):
 
     def get_instrument_params(self) -> MisInstrument:
         instr = MisGratingCfg(self.alpha, self.gamma_ofst)
-        return MisInstrument(self.hmsVersion, self, instr, self._wls)
+        return MisInstrument(self.hmsVersion, self, instr, self.input_wls)
 
     def __init__(
             self, system: str,
@@ -60,7 +60,8 @@ class LinePredictor(MisGrating):
             alpha_max: Numeric = 0,
             alpha_step: Numeric = 0.1,
             n_beta: int = 100,
-            n_gamma: int = 100):
+            n_gamma: int = 100,
+            input_wls: Optional[List[MisFeatures]] = []):
         super().__init__(
             optics.fl_collimator,
             optics.fl_mosaic,
@@ -72,6 +73,7 @@ class LinePredictor(MisGrating):
         if alpha is not None:
             self.alpha = alpha
         self.gamma_ofst = gamma_ofst
+        self.input_wls = input_wls
 
         if alpha_min > alpha_max:
             alpha_min, alpha_max = alpha_max, alpha_min
@@ -235,7 +237,7 @@ class LinePredictor(MisGrating):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def plot_lines(self, wavelengths: List[int | MisFeatures], *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
+    def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=NUM_COLORS - 1)
@@ -248,7 +250,14 @@ class LinePredictor(MisGrating):
 
         self.alpha_orig = self.alpha
 
-        wls = wavelengths.copy()
+        if wavelengths is not None:
+            self.input_wls = wavelengths.copy()
+            for k, v in enumerate(wavelengths):
+                if isinstance(v, int):
+                    self.input_wls[k] = MisFeatures(v)
+            wls = wavelengths
+        else:
+            wls = self.input_wls.copy()
         for k, v in enumerate(wls):
             if isinstance(v, int):
                 style = default_style.copy()

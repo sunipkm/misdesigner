@@ -29,7 +29,7 @@ class MisMosaic:
     y: float
     width: float
     height: float
-    windows: Optional[List[MisMosaicFilter]] = None
+    windows: List[MisMosaicFilter]
 
     def __init__(self, x: float, y: float, width: float, height: float, windows: Optional[List[MisMosaicFilter]] = None):
         self.x = x
@@ -51,23 +51,24 @@ class MisMosaicFilter:
     y: float
     width: float
     height: float
-    ranges: Optional[List[Tuple[int, int]]] = None
+    ranges: List[List[int]]
     name: Optional[str] = None
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: Optional[List[Tuple[int, int]]] = None, name: Optional[str] = None):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[int, int]] = [], name: Optional[str] = None):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.name = name
         frange = []
-        if ranges is not None:
-            for range in ranges:
-                if len(range) != 2:
-                    continue
-                if range[0] > range[1]:
-                    range = (range[1], range[0])
-                frange.append(range)
+        for range in ranges:
+            if len(range) != 2:
+                continue
+            if range[0] > range[1]:
+                range = [range[1], range[0]]
+            else:
+                range = [range[0], range[1]]
+            frange.append(range)
         self.ranges = frange
 
     def check_position(self, wavelength: int, beta: np.ndarray, gamma: np.ndarray) -> np.ndarray:
@@ -91,21 +92,22 @@ class MisSlit:
     y: float
     width: float
     height: float
-    ranges: Optional[List[Tuple[int, int]]] = None
+    ranges: List[List[int]]
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: Optional[List[Tuple[int, int]]] = None):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[int, int]] = []):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         frange = []
-        if ranges is not None:
-            for range in ranges:
-                if len(range) != 2:
-                    continue
-                if range[0] > range[1]:
-                    range = (range[1], range[0])
-                frange.append(range)
+        for range in ranges:
+            if len(range) != 2:
+                continue
+            if range[0] > range[1]:
+                range = [range[1], range[0]]
+            else:
+                range = [range[0], range[1]]
+            frange.append(range)
         self.ranges = frange
 
 
@@ -115,11 +117,11 @@ class MisFeatures:
     """
     wavelength: int  # wavelength (Angstrom)
     # key of slit from which light ends up to this panel
-    slit_key: Optional[str] = None
-    plot_styles: Optional[dict] = None  # color
-    name: Optional[str] = None
+    slit_key: str
+    plot_styles: Dict[str, int | float | str]  # color
+    name: str
 
-    def __init__(self, wavelength: int, diffraction_order: Optional[int] = None, slit_key: Optional[str] = None, plot_styles: Optional[dict] = None, name: Optional[str] = None):
+    def __init__(self, wavelength: int, slit_key: Optional[str] = None, plot_styles: Optional[dict] = None, name: Optional[str] = None):
         self.wavelength = wavelength
         if slit_key is None:
             slit_key = ''
@@ -180,3 +182,4 @@ class MisInstrument:
         if not self.lines:
             return []
         return [self.lines[k].wavelength for k in self.lines]
+# %%
