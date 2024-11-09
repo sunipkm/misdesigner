@@ -1,0 +1,13 @@
+MANIFEST.in
+README.md
+pyproject.toml
+src/misdesigner/__init__.py
+src/misdesigner/instrument_params.py
+src/misdesigner/line_predictor.py
+src/misdesigner/pixel_to_wl_map.py
+src/misdesigner/utils.py
+src/misdesigner.egg-info/PKG-INFO
+src/misdesigner.egg-info/SOURCES.txt
+src/misdesigner.egg-info/dependency_links.txt
+src/misdesigner.egg-info/requires.txt
+src/misdesigner.egg-info/top_level.txt

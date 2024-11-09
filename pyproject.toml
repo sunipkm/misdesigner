@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "misdesigner"
+version = "0.0.0"
+description = "Tool for designing multi-slit imaging spectrographs"
+requires-python = ">=3.8"
+authors = [
+    { name = "Sunip K. Mukherjee", email = "sunipkmukherjee@gmail.com"},
+    { name = "Charmi Patel", email = "charmi_patel@student.uml.edu" }]
+dependencies = [
+    'numpy>=1.20.0',
+    'tqdm>=4.60.0',
+    'astropy>=4.3.0',
+    'xarray',
+    'netcdf4',
+    'tosholi',
+    'scikit-image',
+]
