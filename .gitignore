@@ -1,0 +1,10 @@
+.DS_Store
+**/*.png
+**/*.json
+**/*.log
+**/build/
+**/dist/
+**/node_modules/
+**/__pycache__/
+**/*egg-info
+**/*.pkl
