@@ -18,6 +18,7 @@ class MisGrating:
     # mosaic X center, Y center, width, height
     mosaic: MisMosaic
 
+
 @dataclass
 class MisMosaic:
     """## Instrument Mosaic Parameters
@@ -39,6 +40,7 @@ class MisMosaic:
         if windows is None:
             windows = []
         self.windows = windows
+
 
 @dataclass
 class MisMosaicFilter:
@@ -141,15 +143,30 @@ class MisGratingCfg:
     alpha: float  # angle of incidence (deg)
     gamma_ofst: float = 0  # grating incidence angle (deg)
 
+
+@dataclass
+class MisCamera:
+    scale: float  # pixel scale (mm/pixel)
+    pixel_size: float  # pixel size (mm)
+    well_depth: float  # well depth (e-)
+    exposure: float  # exposure time (s)
+    # quantum efficiency curve (wavelength, qe)
+    qe_curve: Optional[List[List[float], List[float]]] = None
+    readout_noise: Optional[float] = 0.0  # readout noise (e-) per pixel
+    dark_current: Optional[float] = 0.0  # dark current (e-/s/pixel)
+
+
 @dataclass
 class MisInstrument:
     """## Instrument Parameters
     """
     system: str  # Instrument name
     optics: MisGrating  # Instrument Optics Parameters
-    instrument: Optional[MisGratingCfg] = None  # Instrument Adjustment Parameters
+    # Instrument Adjustment Parameters
+    instrument: Optional[MisGratingCfg] = None
     # Instrument interest wavelength parameters
     lines: List[MisFeatures] = None
+    camera: Optional[MisCamera] = None
 
     def min_lambda(self) -> int:
         """## Minimum Wavelength

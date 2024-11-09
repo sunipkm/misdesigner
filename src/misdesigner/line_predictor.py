@@ -15,7 +15,7 @@ import xarray as xr
 import matplotlib as mpl
 import matplotlib.widgets as mpl_widgets
 
-from .instrument_params import MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
+from .instrument_params import MisCamera, MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
 # %%
 
 PlotMode = Literal['Angle', 'Mosaic']
@@ -312,9 +312,9 @@ class LinePredictor(MisGrating):
 
         self._wls = wls
 
-        self.update_alpha(self.alpha, fig, ax, mode)
+        self._update_alpha_plot_lines(self.alpha, fig, ax, mode)
 
-        alpha_slider.on_changed(lambda x: self.update_alpha(x, fig, ax, mode))
+        alpha_slider.on_changed(lambda x: self._update_alpha_plot_lines(x, fig, ax, mode))
 
         if mode == 'Angle':
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
@@ -339,7 +339,7 @@ class LinePredictor(MisGrating):
         ax.set_aspect('equal')
         plt.show()
 
-    def update_alpha(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode):
+    def _update_alpha_plot_lines(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode):
         self.alpha = alpha
 
         if hasattr(self, '_lines'):
@@ -433,4 +433,13 @@ class LinePredictor(MisGrating):
         self._lines = lines
         self._annot = annot
 
+    def simulate(self, source: xr.Dataset, camera: MisCamera, wavelengths: List[int | MisFeatures] = None, *, default_style={}, alpha: Optional[Numeric] = None, **fig_kwargs):
+        if alpha is not None:
+            self.alpha = alpha
+        # TODO: Set up plot
+
+        # TODO: Set up sliders
+
+
+        return
 # %%
