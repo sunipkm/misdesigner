@@ -184,11 +184,12 @@ class LinePredictor(MisGrating):
     def beta_to_grating(self, beta, grating_angle):
         return beta - grating_angle
 
-    def grating_product(self, slit: str, grating_angle: Numeric, *, n_beta: int = 100, n_gamma: int = 100) -> xr.Dataset:
+    def grating_product_lines(self, slit: str, grating_angle: Numeric, *, n_beta: int = 100, n_gamma: int = 100) -> xr.Dataset:
         alpha = self.relative_alpha(slit, grating_angle)  # grating coord
         if alpha < -90 or alpha > 90:
             warnings.warn(
                 f'Slit {slit} is not illuminated at grating angle {grating_angle} deg.')
+            return None
         gmin, gmax = self.gammas[slit]
         minb, maxb = self.beta_min, self.beta_max
         gamma = np.linspace(gmin, gmax, int(n_gamma))  # grating coordinate
@@ -218,8 +219,50 @@ class LinePredictor(MisGrating):
                 'gamma': self.gammas[slit]
             }
         )
+    
+    def grating_product_sim(self, slit: str, grating_angle: Numeric, *, beta: Tuple[Numeric, Numeric] = None, beta_dx: Numeric = 0.1, gamma_dx: Numeric = 0.1) -> xr.Dataset:
+        alpha = self.relative_alpha(slit, grating_angle)  # grating coord
+        if alpha < -90 or alpha > 90:
+            warnings.warn(
+                f'Slit {slit} is not illuminated at grating angle {grating_angle} deg.')
+            return None
+        gmin, gmax = self.gammas[slit]
+        if beta is None:
+            minb, maxb = self.beta_min, self.beta_max
+        else:
+            minb, maxb = beta
+        gamma = np.arange(gmin, gmax + gamma_dx, gamma_dx)  # grating coordinate
+        beta = np.arange(minb, maxb + beta_dx, beta_dx)  # instrument coordinate
+        beta_ = self.beta_to_grating(beta, grating_angle)  # grating coordinate
+        d_beta = np.mean(np.diff(beta))
+        if d_beta > 4:
+            warnings.warn(
+                'Large beta step size. Consider reducing the step size for better accuracy.')
+        bb, gg = np.meshgrid(beta_, gamma)
+        alph = np.sin(np.deg2rad(alpha))
+        gam = np.sin(np.deg2rad(gg))
+        bet = np.sin(np.deg2rad(bb))
+        prod = (bet + alph) * gam * self.den
+        return xr.Dataset(
+            {
+                'grating_product': (['beta', 'gamma'], prod),
+                'beta_arr': (['beta', 'gamma'], bb),
+                'gamma_arr': (['beta', 'gamma'], gg),
+            },
+            coords={
+                'gamma': self.image_deg_to_mm(self.gamma_to_image(gamma)) - self.mosaic_bottom_left[1], 
+                'beta': self.image_deg_to_mm(beta) - self.mosaic_bottom_left[0]
+                    },
+            attrs={
+                'slit': slit,
+                'alpha': alpha,
+                'gamma': self.gammas[slit]
+            }
+        )
 
     def get_lines(self, prod: xr.Dataset, grating_angle: Numeric, wavelength: int, blur: Numeric):
+        if prod is None:
+            return []
         n_frac, n_int = np.modf(prod.grating_product.values / wavelength)
         n_int = n_int.astype(int)
         n_frac /= prod.d_nx.values / wavelength
@@ -399,7 +442,7 @@ class LinePredictor(MisGrating):
                             fig.canvas.draw_idle()
 
         for slit in self.slits.keys():
-            prod = self.grating_product(
+            prod = self.grating_product_lines(
                 slit, self.alpha, n_beta=self.n_beta, n_gamma=self.n_gamma)
             for k, v in enumerate(self._wls):
                 wl = v.wavelength
@@ -455,25 +498,71 @@ class LinePredictor(MisGrating):
         if alpha is not None:
             self.alpha = alpha
 
-        bmin = self.beta_min
-        bmax = self.beta_max
-        gmin = self.gamma_to_grating(self.gamma_min)
-        gmax = self.gamma_to_grating(self.gamma_max)
-        if gmin > gmax:
-            gmin, gmax = gmax, gmin
-
-        dx = 2*np.rad2deg(np.arctan(camera.pixel_size / camera.scale / 2 / self.fl_mosaic))
-        beta_grid = np.arange(bmin, bmax + dx, dx)
-        beta_grid = self.beta_to_grating(beta_grid, self.alpha)
-        gamma_grid = np.arange(gmin, gmax + dx, dx)
+        dx = np.rad2deg(np.arctan2(camera.pixel_size / camera.scale / self.fl_mosaic)) # in degrees
+        beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
+        gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
         print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
         beta_mesh, gamma_mesh = np.meshgrid(beta_grid, gamma_grid)
         print(f'Mesh size: {beta_mesh.shape[0]}x{beta_mesh.shape[1]}')
         intensities = np.zeros(beta_mesh.shape, dtype=float)
+        prods: Dict[str, xr.Dataset] = {}
+        for slit in self.slits.keys():
+            prods[slit] = self.grating_product_sim(slit, self.alpha, beta_dx=dx, gamma_dx=dx)
 
         # TODO: Set up plot
 
         # TODO: Set up sliders
+        betaofst = np.rad2deg(np.arctan(self.mosaic.x/self.fl_mosaic))
+        for window in self.mosaic.windows:
+            print(f'Processing window {window.name}')
+            beta_min = window.x - self.mosaic.width / 2
+            beta_max = window.x + window.width - self.mosaic.width / 2
+            beta_min = np.rad2deg(np.arctan(beta_min / self.fl_mosaic))
+            beta_max = np.rad2deg(np.arctan(beta_max / self.fl_mosaic))
+            beta_min += betaofst
+            beta_max += betaofst
+            if beta_min > beta_max:
+                beta_min, beta_max = beta_max, beta_min
+            for skey, slit in self.slits.items():
+                prod = prods[skey]
+                wl_range = []
+                for r in window.ranges:
+                    if slit.ranges is not None and len(slit.ranges) > 0:
+                        wl_range += common_range(slit.ranges, r)
+                    else:
+                        wl_range.append(r)
+                for r in wl_range:
+                    rmin = r[0]
+                    rmax = r[1]
+                    n1_min, n1_max = sign_ceil(
+                        np.min(prod / rmin)), sign_floor(np.max(prod / rmin))
+                    n2_min, n2_max = sign_ceil(
+                        np.min(prod / rmax)), sign_floor(np.max(prod / rmax))
+                    n_min = int(min(n1_min, n2_min))
+                    n_max = int(max(n1_max, n2_max))
+                    for n in range(n_min, n_max + 1):
+                        if n == 0:
+                            continue
+                        lam = prod / n
+                        # everything flat here
+                        lam = lam.flatten().reshape((my, mx))
+                        ddlam = np.abs(np.diff(lam, axis=1)) / 2
+                        ddlam = np.insert(ddlam, 0, ddlam[:, 0], axis=1)
+                        lam = lam.flatten()
+                        ddlam = ddlam.flatten()
+                        # Interpolate QE curve
+                        if camera.qe_curve is None:
+                            qe = 1
+                        else:
+                            qe = np.interp(lam, camera.qe_curve[0], camera.qe_curve[1])
+                        ridx = np.where((lam < rmin) | (lam > rmax))
+                        lower = lam - ddlam
+                        upper = lam + ddlam
+                        intensity = np.vectorize(calc_intensity)(lower, upper)
+                        intensity[ridx] = 0
+                        intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe) 
+                
+                ...
 
         for skey, slit in self.slits.items():
             x_0 = self.mosaic.x + self.mosaic.width/2
