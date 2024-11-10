@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable, SupportsFloat as Numeric
+from typing import Iterable, List, SupportsFloat as Numeric, Tuple
 import numpy as np
 import astropy.io.fits as fits
 
@@ -46,3 +46,19 @@ def find_nearest(array: Iterable, targetval: Numeric) -> tuple[int, Numeric]:
     dif = np.abs(np.array(array)-targetval)
     idx = np.nanargmin(dif)
     return idx, array[idx]
+
+def common_range(r1: List[Tuple[int, int]], r2: Tuple[int, int]) -> List[Tuple[int, int]]:
+    """finds the common range between two ranges."""
+    out = []
+    for r in r1:
+        rmin = max(r[0], r2[0])
+        rmax = min(r[1], r2[1])
+        if rmin < rmax:
+            out.append((rmin, rmax))
+    return out
+
+def sign_floor(x):
+    return np.sign(x) * np.floor(np.abs(x))
+
+def sign_ceil(x):
+    return np.sign(x) * np.ceil(np.abs(x))

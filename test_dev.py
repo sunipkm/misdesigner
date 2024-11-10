@@ -1,10 +1,13 @@
 # %%
 from __future__ import annotations
+from matplotlib import pyplot as plt
+import numpy as np
 import tosholi
 import matplotlib as mpl
 from misdesigner import *
 import yaml
 from dataclasses import asdict
+import xarray as xr
 
 usetex = False
 
@@ -46,4 +49,16 @@ img.plot_lines([
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ])
+# %%
+sol = xr.load_dataset('solar_spectra_air.nc')
+source_wl = sol['wavelength'].values*10
+source_int = sol['irradiance'].values
+# %%
+length = max(grat.mosaic.width, grat.mosaic.height)
+dx = length / 1024
+camera = MisCamera(1, dx, np.inf, 1)
+ret = img.simulate(source_wl, source_int, camera)
+
+plt.imshow(ret, aspect='auto', cmap='inferno')
+plt.show()
 # %%

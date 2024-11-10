@@ -7,6 +7,7 @@ import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 from collections.abc import Iterable
+from scipy import integrate
 import tosholi
 import astropy.io.fits as pf
 from scipy.optimize import curve_fit
@@ -16,6 +17,7 @@ import matplotlib as mpl
 import matplotlib.widgets as mpl_widgets
 
 from .instrument_params import MisCamera, MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
+from .utils import common_range, sign_ceil, sign_floor
 # %%
 
 PlotMode = Literal['Angle', 'Mosaic']
@@ -161,12 +163,20 @@ class LinePredictor(MisGrating):
         beta = np.arcsin(sinb)
         return np.rad2deg(beta)
 
+    def gamma_to_grating(self, gamma):
+        return 90 + gamma
+
     def gamma_to_image(self, gamma):
         # for a reflective grating
         # additional -90 from going back to instrument coordinate
         val = 90 - gamma
         vlen = np.tan(np.deg2rad(val))*self.fl_collimator
         return np.rad2deg(np.arctan(vlen / self.fl_mosaic))
+
+    def gamma_from_image(self, gamma):
+        vlen = np.tan(np.deg2rad(gamma))*self.fl_mosaic
+        val = np.rad2deg(np.arctan(vlen / self.fl_collimator))
+        return 90 + val
 
     def beta_to_image(self, beta, grating_angle):
         return beta + grating_angle
@@ -314,12 +324,14 @@ class LinePredictor(MisGrating):
 
         self._update_alpha_plot_lines(self.alpha, fig, ax, mode)
 
-        alpha_slider.on_changed(lambda x: self._update_alpha_plot_lines(x, fig, ax, mode))
+        alpha_slider.on_changed(
+            lambda x: self._update_alpha_plot_lines(x, fig, ax, mode))
 
         if mode == 'Angle':
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
+            # instrument coordinate
             ax.set_ylim(self.gamma_min, self.gamma_max)
-            ax.set_xlim(self.beta_min, self.beta_max)
+            ax.set_xlim(self.beta_min, self.beta_max)  # instrument coordinate
             ax.set_xlabel(r'$\beta$ ($^\circ$)', fontdict={'size': 10})
             ax.set_ylabel(r'$\gamma$ ($^\circ$)', fontdict={'size': 10})
         elif mode == 'Mosaic':
@@ -433,13 +445,138 @@ class LinePredictor(MisGrating):
         self._lines = lines
         self._annot = annot
 
-    def simulate(self, source: xr.Dataset, camera: MisCamera, wavelengths: List[int | MisFeatures] = None, *, default_style={}, alpha: Optional[Numeric] = None, **fig_kwargs):
+    def simulate(self, source_wl: np.ndarray, source_i: np.ndarray, camera: MisCamera, wavelengths: List[int | MisFeatures] = None, *, default_style={}, alpha: Optional[Numeric] = None, **fig_kwargs):
+        HBAR = 6.62607015e-34
+        SPEED_LIGHT = 299792458
+        def calc_intensity(l, u):
+            idx = np.where((source_wl >= l) & (source_wl <= u))
+            return np.sum(source_i[idx])
+        
         if alpha is not None:
             self.alpha = alpha
+
+        bmin = self.beta_min
+        bmax = self.beta_max
+        gmin = self.gamma_to_grating(self.gamma_min)
+        gmax = self.gamma_to_grating(self.gamma_max)
+        if gmin > gmax:
+            gmin, gmax = gmax, gmin
+
+        dx = 2*np.rad2deg(np.arctan(camera.pixel_size / camera.scale / 2 / self.fl_mosaic))
+        beta_grid = np.arange(bmin, bmax + dx, dx)
+        beta_grid = self.beta_to_grating(beta_grid, self.alpha)
+        gamma_grid = np.arange(gmin, gmax + dx, dx)
+        print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
+        beta_mesh, gamma_mesh = np.meshgrid(beta_grid, gamma_grid)
+        print(f'Mesh size: {beta_mesh.shape[0]}x{beta_mesh.shape[1]}')
+        intensities = np.zeros(beta_mesh.shape, dtype=float)
+
         # TODO: Set up plot
 
         # TODO: Set up sliders
 
+        for skey, slit in self.slits.items():
+            x_0 = self.mosaic.x + self.mosaic.width/2
+            y_0 = self.mosaic.y - self.mosaic.height/2
+            x_1 = self.mosaic.x - self.mosaic.width/2
+            y_1 = self.mosaic.y + self.mosaic.height/2
+            for window in self.mosaic.windows:
+                print(f'Processing window {window.name}')
+                wl_range = []
+                for r in window.ranges:
+                    if slit.ranges is not None and len(slit.ranges) > 0:
+                        wl_range += common_range(slit.ranges, r)
+                    else:
+                        wl_range.append(r)
+                # calc beta min and max for the mosaic window
+                beta_min = x_0 - window.x - window.width
+                beta_max = x_0 - window.x
+                print(f'Window {window.name}: {beta_min} - {beta_max}')
+                print(f'Mosaic {x_0} - {x_1}')
+                if beta_min > beta_max:
+                    beta_min, beta_max = beta_max, beta_min
+                if beta_max > x_1:
+                    beta_max = x_1
+                if beta_min < x_0:
+                    beta_min = x_0
+                beta_min = np.rad2deg(np.arctan(beta_min / self.fl_mosaic))
+                beta_max = np.rad2deg(np.arctan(beta_max / self.fl_mosaic))
+                if beta_min > beta_max:
+                    beta_min, beta_max = beta_max, beta_min
+                print(f'Beta range: {beta_min} - {beta_max}')
+                print(f'Mosaic beta range: {self.beta_min} - {self.beta_max}')
+                # calc gamma min and max for the mosaic window
+                gamma_min = y_0 - window.y
+                gamma_max = y_0 - window.y - window.height
+                if gamma_min > gamma_max:
+                    gamma_min, gamma_max = gamma_max, gamma_min
+                if gamma_max > y_1:
+                    gamma_max = y_1
+                if gamma_min < y_0:
+                    gamma_min = y_0
+                gamma_min = np.rad2deg(np.arctan(gamma_min / self.fl_mosaic))
+                gamma_max = np.rad2deg(np.arctan(gamma_max / self.fl_mosaic))
+                gamma_min = self.gamma_from_image(gamma_min)
+                gamma_max = self.gamma_from_image(gamma_max)
+                if gamma_min > gamma_max:
+                    gamma_min, gamma_max = gamma_max, gamma_min
+                print(f'Gamma range: {gamma_min} - {gamma_max}')
+                print(f'Mosaic gamma range: {gmin} - {gmax}')
 
-        return
+                im_gmin = max(gamma_min, self.gamma_to_image(
+                    self.gammas[skey][0]))
+                im_gmax = min(gamma_max, self.gamma_to_image(
+                    self.gammas[skey][1]))
+
+                # actual grid, in grating coordinates
+                midx = np.where((beta_mesh >= beta_min) & (beta_mesh <= beta_max) & (gamma_mesh >= im_gmin) & (gamma_mesh <= im_gmax))
+                print(midx)
+                mx = len(np.where((beta_mesh >= beta_min) & (beta_mesh <= beta_max))[0])
+                my = len(np.where((gamma_mesh >= im_gmin) & (gamma_mesh <= im_gmax))[0])
+                alpha = self.relative_alpha(skey, self.alpha)
+                bb = beta_mesh[midx]
+                gg = gamma_mesh[midx]
+                alph = np.sin(np.deg2rad(alpha))
+                gam = np.sin(np.deg2rad(gg))
+                bet = np.deg2rad(bb)
+                prod: np.ndarray = (np.sin(bet) + alph) * gam * self.den
+                print(f'Processing {len(wl_range)} wavelength ranges')
+                print(f'Prod: {prod.shape}')
+                if prod.size == 0:
+                    continue
+                # dprod: np.ndarray = self.den * gam * np.cos(bet) * dx
+                for r in wl_range:
+                    rmin = r[0]
+                    rmax = r[1]
+                    print(rmin, rmax)
+                    n1_min, n1_max = sign_ceil(
+                        np.min(prod / rmin)), sign_floor(np.max(prod / rmin))
+                    n2_min, n2_max = sign_ceil(
+                        np.min(prod / rmax)), sign_floor(np.max(prod / rmax))
+                    n_min = int(min(n1_min, n2_min))
+                    n_max = int(max(n1_max, n2_max))
+                    for n in range(n_min, n_max + 1):
+                        if n == 0:
+                            continue
+                        lam = prod / n
+                        # everything flat here
+                        lam = lam.flatten().reshape((my, mx))
+                        ddlam = np.abs(np.diff(lam, axis=1)) / 2
+                        ddlam = np.insert(ddlam, 0, ddlam[:, 0], axis=1)
+                        lam = lam.flatten()
+                        ddlam = ddlam.flatten()
+                        # Interpolate QE curve
+                        if camera.qe_curve is None:
+                            qe = 1
+                        else:
+                            qe = np.interp(lam, camera.qe_curve[0], camera.qe_curve[1])
+                        ridx = np.where((lam < rmin) | (lam > rmax))
+                        lower = lam - ddlam
+                        upper = lam + ddlam
+                        intensity = np.vectorize(calc_intensity)(lower, upper)
+                        intensity[ridx] = 0
+                        intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe) 
+            # TODO: for each slit, calculate 0 order intensity
+            # intensities.clip(0, camera.well_depth, out=intensities)
+        return intensities
 # %%
