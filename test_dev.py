@@ -24,13 +24,14 @@ mpl.rc('text', usetex=usetex)
 
 # %%
 SYSTEM = 'HMS-A ORIGIN'
+SLIT_WIDTH = 50
 slit_height = 64.44
 grat = MisGrating(400, 442.7, 98.76,
                   {
-                      'BL': MisSlit(29, -slit_height / 4, 0.05, slit_height / 2), #, ranges=[(2800, 4600), (7100, 11000)]),
-                      'BR': MisSlit(0, -slit_height / 4, 0.05, slit_height / 2), #, ranges=[(4950, 7000)]),
-                      'TL': MisSlit(29, slit_height / 4, 0.05, slit_height / 2), #, ranges=[(5900, np.inf)]),
-                      'TR': MisSlit(0, slit_height / 4, 0.05, slit_height / 2) #, ranges=[(-np.inf, 5500)]),
+                      'BL': MisSlit(29, -slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2), #, ranges=[(2800, 4600), (7100, 11000)]),
+                      'BR': MisSlit(0, -slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2), #, ranges=[(4950, 7000)]),
+                      'TL': MisSlit(29, slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2), #, ranges=[(5900, np.inf)]),
+                      'TR': MisSlit(0, slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2) #, ranges=[(-np.inf, 5500)]),
                   },
                   MisMosaic((-5.85 - 58.35)*0.5, (-1.8+2.5)/2, 24.63 + 27.57 + 0.3,  27.72 + 26.96 + 1.8 + 2.5,
                             [
@@ -78,7 +79,7 @@ fig, _, _ = img.intensity_plot(ret[0], [
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-fig.savefig(f'{SYSTEM}_intensity.png', dpi=300, bbox_inches='tight')
+fig.savefig(f'{SYSTEM}_intensity_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
 # %%
 fig, _ = img.order_map(ret[1], [
@@ -90,11 +91,11 @@ fig, _ = img.order_map(ret[1], [
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-fig.savefig(f'{SYSTEM}_order_map_all.png', dpi=300, bbox_inches='tight')
+fig.savefig(f'{SYSTEM}_order_map_all_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
 # %%
 for slit in ret[1].slit.values:
     img.order_map_slit(ret[1], slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-    plt.savefig(f'{SYSTEM}_order_map_{slit}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'{SYSTEM}_order_map_{slit}_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
     plt.close(fig)
 # %%
