@@ -1,5 +1,6 @@
 # %%
 from __future__ import annotations
+from time import perf_counter_ns
 from matplotlib import pyplot as plt
 import numpy as np
 import tosholi
@@ -56,10 +57,12 @@ source_int = sol['irradiance'].values/10 # W/m^2/nm -> W/m^2/Angstrom
 
 # %%
 length = max(grat.mosaic.width, grat.mosaic.height)
-dx = length / 1024
+IMG_SZ = 1024
+dx = length / IMG_SZ
 camera = MisCamera(254.5, 1, dx, np.inf, 1)
+start = perf_counter_ns()
 ret = img.simulate(source_wl, source_int, camera, report=False)
-plt.show()
+print(f"Time to simulate ({IMG_SZ} x {IMG_SZ}): {(perf_counter_ns() - start) / 1e9} s")
 # %%
 img.intensity_plot(ret[0], [
     MisFeatures(6300, plot_styles={'color': 'red'}),
