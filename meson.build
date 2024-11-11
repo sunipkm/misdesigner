@@ -19,6 +19,7 @@ add_global_arguments('-O3', language : 'c')
 add_global_arguments('-c', language : 'c')
 
 omp_dep = dependency('openmp', required: false)
+m_dep = compiler.find_library('m', required: true)
 
 if omp_dep.found()
   # OK
@@ -37,7 +38,7 @@ lib = shared_library('integrate_unsort_lib',
   include_directories: 'src/c_cpp',
   install : true,
   install_dir : py.get_install_dir() / 'misdesigner',
-  dependencies: omp_dep,
+  dependencies: [omp_dep, m_dep],
 )
 
 py.install_sources(

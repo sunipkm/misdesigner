@@ -81,6 +81,20 @@ fig, _, _ = img.intensity_plot(ret[0], [
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
 fig.savefig(f'{SYSTEM}_intensity_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
+print('Saved intensity plot.')
+# %%
+fig, _ = img.intensity_plot_rgb(ret[0], ret[1], [
+    MisFeatures(6300, plot_styles={'color': 'red'}),
+    MisFeatures(5577, plot_styles={'color': 'green'}),
+    MisFeatures(7774, plot_styles={'color': 'brown'}),
+    MisFeatures(4278, plot_styles={'color': 'violet'}),
+    MisFeatures(6563, plot_styles={'color': 'orange'}),
+    MisFeatures(4861, plot_styles={'color': 'cyan'}),
+    7821, 7841, 6522, 6568
+], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
+fig.savefig(f'{SYSTEM}_intensity_rgb_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
+plt.close(fig)
+print('Saved RGB intensity plot.')
 # %%
 fig, _ = img.order_map(ret[1], [
     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -93,9 +107,12 @@ fig, _ = img.order_map(ret[1], [
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
 fig.savefig(f'{SYSTEM}_order_map_all_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
 plt.close(fig)
+print('Saved total order map.')
 # %%
 for slit in ret[1].slit.values:
     img.order_map_slit(ret[1], slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
     plt.savefig(f'{SYSTEM}_order_map_{slit}_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
     plt.close(fig)
+    print(f'Saved order map for slit {slit}.')
 # %%
+print('Finished.\n')

@@ -2,6 +2,7 @@ import os, os.path
 import ctypes
 from ctypes import *
 import ctypes.util
+from typing import Tuple
 import numpy as np
 from glob import glob
 
@@ -90,3 +91,42 @@ def unsort(x: np.ndarray, args: np.ndarray)->np.ndarray:
     DLL.unsort(unsort_t)
     DLL.free_unsort(unsort_t)
     return out
+
+def wavelength_to_rgb(lam: np.ndarray, gamma: float = 0.8) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """## Convert a wavelength to an RGB color.
+
+    ### Args:
+        - `lam (np.ndarray)`: The wavelength to convert.
+        - `gamma (float)`: The gamma correction factor.
+
+    ### Raises:
+        - `ValueError`: lam must be of type np.float64.
+        - `ValueError`: lam must be 1D.
+
+    ### Returns:
+        - `np.ndarray`: The RGB color.
+    """
+    if lam.dtype != np.float64:
+        lam = lam.astype(np.float64)
+    shape = lam.shape
+    lam = lam.flatten()
+    if gamma < 0:
+        gamma = 0
+    if gamma > 1:
+        gamma = 1
+    r = np.zeros_like(lam, dtype=np.float64)
+    g = np.zeros_like(lam, dtype=np.float64)
+    b = np.zeros_like(lam, dtype=np.float64)
+    data_t = DLL.create_wavelength_to_rgb(lam.ctypes.data_as(POINTER(c_double)),
+                                r.ctypes.data_as(POINTER(c_double)),
+                                g.ctypes.data_as(POINTER(c_double)),
+                                b.ctypes.data_as(POINTER(c_double)),
+                                c_double(gamma),
+                                c_size_t(len(lam)),
+                             )
+    DLL.wavelength_to_rgb(data_t)
+    DLL.free_wavelength_to_rgb(data_t)
+    r = r.reshape(shape)
+    g = g.reshape(shape)
+    b = b.reshape(shape)
+    return r, g, b

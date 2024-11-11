@@ -16,7 +16,7 @@ import matplotlib.widgets as mpl_widgets
 from .instrument_params import MisCamera, MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
 from .utils import common_range, sign_ceil, sign_floor
 
-from .multi_integrate import multi_integrate, unsort
+from .multi_integrate import multi_integrate, unsort, wavelength_to_rgb
 # %%
 
 PlotMode = Literal['Angle', 'Mosaic']
@@ -767,6 +767,7 @@ class LinePredictor(MisGrating):
             - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
             - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
+            - `fig_kwargs`: Additional arguments for the figure creation.
 
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
@@ -784,6 +785,45 @@ class LinePredictor(MisGrating):
         cbar.set_label('Intensity (e$^-$)')
         cbar.formatter.set_useMathText(True)
         return fig, ax, cax
+    
+    def intensity_plot_rgb(self, intensity: DataArray, extra_maps: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, gamma: Numeric = 0.8, **fig_kwargs)-> Tuple[plt.Figure, plt.Axes]:
+        """## Plot the intensity map on the mosaic plane.
+
+        ### Args:
+            - `intensities (DataArray)`: Intensity map.
+            - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
+            - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
+            - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
+            - `rgb (bool, optional)`: Convert the intensity map to RGB. Defaults to False. If True, the intensity map is converted to RGB and the color map is ignored.
+            - `fig_kwargs`: Additional arguments for the figure creation.
+
+        ### Returns:
+            - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
+        """
+        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+                                   default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
+        fig: plt.Figure = fig
+        ax: plt.Axes = ax
+
+        rgb = np.zeros((*extra_maps.wavelength.values.shape[:-1], 3), dtype=float)
+        for k in extra_maps.slit.values:
+            # print(f'Processing slit {k}...')
+            v = extra_maps.sel(slit=k)
+            wavelengths = v.wavelength.values
+            r, g, b = wavelength_to_rgb(wavelengths, gamma)
+            temp = np.stack([r, g, b], axis=-1)
+            scale = (v.intensity.values / np.nanmax(intensity.values))[:, :, np.newaxis]
+            temp *= scale
+            np.nan_to_num(temp, copy=False)
+            rgb += temp
+            # print(f'Slit {k} processed: R ({np.nanmin(rgb_[:, :, 0])}:{np.nanmax(rgb_[:, :, 0])}), G ({np.nanmin(rgb_[:, :, 1])}:{np.nanmax(rgb_[:, :, 1])}), B ({np.nanmin(rgb_[:, :, 2])}:{np.nanmax(rgb_[:, :, 2])})')
+            del temp, r, g, b
+        rgb = np.clip(rgb, 0, 1)
+        im = ax.imshow(rgb, origin='lower', extent=[
+                       extra_maps.beta.values[0], extra_maps.beta.values[-1], extra_maps.gamma.values[0], extra_maps.gamma.values[-1]])
+        # fig.subplots_adjust(bottom=0.7)
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
+        return fig, ax
 
     def order_map(self, extra_maps: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the different orders illuminating different sections of the mosaic for all slits.
