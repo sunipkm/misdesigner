@@ -21,6 +21,8 @@ import matplotlib.widgets as mpl_widgets
 
 from .instrument_params import MisCamera, MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
 from .utils import common_range, sign_ceil, sign_floor
+
+from .multi_integrate import multi_integrate, unsort
 # %%
 
 PlotMode = Literal['Angle', 'Mosaic']
@@ -315,10 +317,10 @@ class LinePredictor(MisGrating):
 
     def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
         fig, ax = self._plot_lines(True, alpha, wavelengths, mode=mode,
-                                      default_style=default_style, fig_kwargs=fig_kwargs)
+                                   default_style=default_style, labels=False, fig_kwargs=fig_kwargs)
         plt.show()
-    
-    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, fig_kwargs):
+
+    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=NUM_COLORS - 1)
@@ -372,7 +374,7 @@ class LinePredictor(MisGrating):
         fig = plt.figure(constrained_layout=True, **fig_kwargs)
         if sliders:
             gs = fig.add_gridspec(3, 3, hspace=0.2, wspace=0.1, height_ratios=[
-                                0.6, 0.05, 0.05], width_ratios=[1, 0.25, 0.25])
+                0.6, 0.05, 0.05], width_ratios=[1, 0.25, 0.25])
             ax = fig.add_subplot(gs[0, :])
 
             axalpha = fig.add_subplot(gs[1, :])
@@ -398,11 +400,11 @@ class LinePredictor(MisGrating):
 
         self._wls = wls
 
-        self._update_alpha_plot_lines(self.alpha, fig, ax, mode)
+        self._update_alpha_plot_lines(self.alpha, fig, ax, mode, labels)
 
         if sliders:
             alpha_slider.on_changed(
-                lambda x: self._update_alpha_plot_lines(x, fig, ax, mode))
+                lambda x: self._update_alpha_plot_lines(x, fig, ax, mode, labels))
 
         if mode == 'Angle':
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
@@ -415,7 +417,8 @@ class LinePredictor(MisGrating):
             if sliders:
                 fig.suptitle(f'{self.hmsVersion}\nMOSAIC')
             else:
-                fig.suptitle(f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self.alpha:.1f}^\\circ$')
+                fig.suptitle(
+                    f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self.alpha:.1f}^\\circ$')
             ax.set_xlim(-self.mosaic.width, 0)
             ax.set_ylim(0, self.mosaic.height)
             ax.invert_xaxis()
@@ -431,7 +434,7 @@ class LinePredictor(MisGrating):
         ax.set_aspect('equal')
         return (fig, ax)
 
-    def _update_alpha_plot_lines(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode):
+    def _update_alpha_plot_lines(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool):
         self.alpha = alpha
 
         if hasattr(self, '_lines'):
@@ -484,6 +487,8 @@ class LinePredictor(MisGrating):
             for k, v in enumerate(self._wls):
                 wl = v.wavelength
                 visible = True
+                if labels:
+                    v.plot_styles['label'] = f'{v.wavelength:.0f}Å'
                 # filter by feature from slit
                 if v.slit_key is not None and len(v.slit_key) > 0:
                     if v.slit_key != slit:
@@ -519,7 +524,8 @@ class LinePredictor(MisGrating):
                                     beta[valid], gamma[valid], **v.plot_styles)
                                 lines.append((slit, line, ord, wl, res))
                     if not plotted:
-                        line, = ax.plot(beta, gamma, **v.plot_styles, zorder=10)
+                        line, = ax.plot(
+                            beta, gamma, **v.plot_styles, zorder=10)
                         lines.append((slit, line, ord, wl, res))
 
         fig.canvas.mpl_connect("motion_notify_event", hover)
@@ -527,13 +533,17 @@ class LinePredictor(MisGrating):
         self._lines = lines
         self._annot = annot
 
-    def simulate(self, source_wl: np.ndarray, source_i: np.ndarray, camera: MisCamera, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, cmap: str = 'bone', **fig_kwargs):
-        INV_PLANK_CONST = 1 / 6.62607015e-24 # adjusted for Angstrom
+    def simulate(self, source_wl: np.ndarray, source_i: np.ndarray, camera: MisCamera, *, alpha: Optional[Numeric] = None, report: bool = True, use_c: bool = True) -> Tuple[xr.DataArray, xr.Dataset]:
+        INV_PLANK_CONST = 1 / 6.62607015e-24  # adjusted for Angstrom
         SPEED_LIGHT = 299792458
 
         def calc_intensity(l, u):
             idx = np.where((source_wl >= l) & (source_wl <= u))
             return np.sum(source_i[idx])*(u-l)
+
+        def report_print(show: bool, msg: str, end: str = '\n'):
+            if show:
+                print(msg, end=end)
 
         if alpha is not None:
             self.alpha = alpha
@@ -551,45 +561,49 @@ class LinePredictor(MisGrating):
         intensities = xr.DataArray(intensities, coords={
                                    'gamma': gamma_grid, 'beta': beta_grid}, dims=['gamma', 'beta'])
         prods: Dict[str, Optional[xr.Dataset]] = {}
-        extra_maps: Dict[str, Optional[xr.Dataset]] = {}
         for slit in self.slits.keys():
             prod = self.grating_product_sim(
                 slit, self.alpha, beta_grid, gamma_grid)
             prods[slit] = prod
-            if prod is None:
-                extra_maps[slit] = None
-            else:
-                extra_maps[slit] = xr.Dataset({
-                    'intensity': (['gamma', 'beta'], np.zeros_like(prod.grating_product.values)),
-                    'wavelength': (['gamma', 'beta'], np.zeros_like(prod.grating_product.values)),
-                    'resolution': (['gamma', 'beta'], np.zeros_like(prod.grating_product.values)),
-                    'order': (['gamma', 'beta'], np.zeros_like(prod.grating_product.values).astype(int)),
-                },
-                    coords={
-                    'gamma': gamma_grid,
-                    'beta': beta_grid
-                },
-                    attrs={
-                    'slit': slit,
-                    'alpha': prod.attrs['alpha'],
-                    'gmin': prod.attrs['gmin'],
-                    'gmax': prod.attrs['gmax'],
-                })
+
+        valid_keys = [k if v is not None else None for k,
+                      v in self.slits.items()]
+        valid_keys = list(filter(lambda x: x is not None, valid_keys))
+        extra_maps = xr.Dataset(
+            {
+                'intensity': (['gamma', 'beta', 'slit'], np.zeros((*intensities.values.shape, len(valid_keys)), dtype=float)),
+                'wavelength': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
+                'resolution': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
+                'order': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
+            },
+            coords={
+                'gamma': gamma_grid,
+                'beta': beta_grid,
+                'slit': valid_keys,
+            },
+            attrs={
+                'alpha': self.alpha,
+                'gmin': [prods[k].attrs['gmin'] for k in valid_keys],
+                'gmax': [prods[k].attrs['gmax'] for k in valid_keys],
+            }
+        )
 
         dark_rate = 0
-        if camera.dark_current is not None and camera.dark_current > 0: # dark current
+        if camera.dark_current is not None and camera.dark_current > 0:  # dark current
             dark_rate = camera.dark_current * camera.exposure
 
         for window in self.mosaic.windows:
             beta_range = window.get_xrange()
             gamma_range = window.get_yrange()
-            print(f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
+            report_print(report,
+                         f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
             for skey, slit in self.slits.items():
                 prod = prods[skey]
                 if prod is None:
                     continue
                 prod: xr.Dataset = prod
-                props: xr.Dataset = extra_maps[skey] # it is guaranteed to be not None at this point
+                # it is guaranteed to be not None at this point
+                props: xr.Dataset = extra_maps.sel(slit=skey)
                 wl_range = []
                 for r in window.ranges:
                     if slit.ranges is not None and len(slit.ranges) > 0:
@@ -615,10 +629,10 @@ class LinePredictor(MisGrating):
                     prod_s = prod.sel(beta=slice(*beta_range),
                                       gamma=slice(*grange))
                     props_s = props.sel(beta=slice(*beta_range),
-                                      gamma=slice(*grange))
+                                        gamma=slice(*grange))
                     intensities_s = intensities.sel(
                         beta=slice(*beta_range), gamma=slice(*grange))
-                    
+
                     n1_min, n1_max = sign_ceil(
                         np.nanmin(prod_s.grating_product.values / rmin)), sign_floor(np.nanmax(prod_s.grating_product.values / rmin))
                     n2_min, n2_max = sign_ceil(
@@ -628,23 +642,25 @@ class LinePredictor(MisGrating):
                     if n_min > n_max:
                         n_min, n_max = n_max, n_min
 
-                    print(
-                        f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
+                    report_print(report,
+                                 f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
 
                     for n in range(n_min, n_max + 1):
                         if n == 0:
                             continue
                         lam = prod_s.grating_product.values / n
                         dlam = prod_s.d_nx.values / n / 2
-                        print(f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', ')
+                        report_print(report,
+                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', ')
                         sys.stdout.flush()
                         rvalid = np.where((lam >= rmin) & (lam <= rmax))
                         if len(rvalid[0]) == 0:
-                            print('No valid wavelengths.')
+                            report_print(report, 'No valid wavelengths.')
                             continue
                         props_s.order.values[rvalid] = n
                         props_s.wavelength.values[rvalid] = lam[rvalid]
-                        props_s.resolution.values[rvalid] = lam[rvalid] / dlam[rvalid]
+                        props_s.resolution.values[rvalid] = lam[rvalid] / \
+                            dlam[rvalid]
                         # Interpolate QE curve
                         if camera.qe_curve is None:
                             qe = 1
@@ -654,38 +670,104 @@ class LinePredictor(MisGrating):
                         lower = lam[rvalid] - dlam[rvalid]
                         upper = lam[rvalid] + dlam[rvalid]
                         llower: np.ndarray = np.minimum(lower, upper)
-                        uupper = np.maximum(lower, upper)
-                        start = perf_counter_ns()
-                        intensity = np.vectorize(calc_intensity)(llower, uupper)
-                        end = perf_counter_ns()
-                        print(
-                            f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
+                        uupper: np.ndarray = np.maximum(lower, upper)
+                        if use_c:
+                            sortargs = np.argsort(llower)
+                            llower.sort()
+                            uupper.sort()
+                            start = perf_counter_ns()
+                            # intensity = np.vectorize(
+                            #     calc_intensity)(llower, uupper)
+                            intensity = multi_integrate(
+                                source_wl, source_i, llower, uupper)
+                            intensity = unsort(intensity, sortargs)
+                            end = perf_counter_ns()
+                        else:
+                            start = perf_counter_ns()
+                            intensity = np.vectorize(
+                                calc_intensity)(llower, uupper)
+                            end = perf_counter_ns()
+                        report_print(report,
+                                     f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
                         # intensity[rignr] = 0
                         # intensity = intensity.reshape(lam.shape)
-                        intensity = (intensity * camera.aperture * 1e-6 * camera.exposure) # amount of energy in Joules
-                        intensity = intensity * lam[rvalid] * INV_PLANK_CONST / SPEED_LIGHT # convert to photons
-                        intensity = intensity * qe # apply QE
-                        if camera.readout_noise is not None and camera.readout_noise > 0: # readout noise
-                            intensity += np.random.poisson(0, camera.readout_noise, intensity.shape)
-                        intensity += dark_rate # dark current
+                        # amount of energy in Joules
+                        intensity = (intensity * camera.aperture *
+                                     1e-6 * camera.exposure)
+                        intensity = intensity * \
+                            lam[rvalid] * INV_PLANK_CONST / \
+                            SPEED_LIGHT  # convert to photons
+                        intensity = intensity * qe  # apply QE
+                        if camera.readout_noise is not None and camera.readout_noise > 0:  # readout noise
+                            intensity += np.random.poisson(
+                                0, camera.readout_noise, intensity.shape)
+                        intensity += dark_rate  # dark current
                         intensities_s.values[rvalid] += intensity
                         props_s.intensity.values[rvalid] += intensity
                         # intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe)
-            print(f'Window {window.name} processed.')
+            report_print(report, f'Window {window.name} processed.')
         # return intensities
         intensities.values.clip(0, camera.well_depth, out=intensities.values)
-        for _, v in extra_maps.items():
-            if v is not None:
-                v.intensity.values.clip(0, camera.well_depth, out=v.intensity.values)
-        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic', default_style=default_style, fig_kwargs=fig_kwargs)
-        im = ax.pcolormesh(beta_grid, gamma_grid, intensities.values, cmap=cmap, zorder=0, shading='auto')
-        fig.subplots_adjust(right=0.85)
-        cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
-        cbar = fig.colorbar(im, cax=cax)
-        cbar.set_label('Intensity (ADU)')
+        extra_maps.intensity.values.clip(
+            0, camera.well_depth, out=extra_maps.intensity.values)
+        return (intensities, extra_maps)
+
+    def intensity_plot(self, intensities: xr.DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs):
+        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+                                   default_style=default_style, labels=True, fig_kwargs=fig_kwargs)
+        fig: plt.Figure = fig
+        ax: plt.Axes = ax
+        im = ax.imshow(intensities.values, origin='lower', extent=[
+                       intensities.beta.values[0], intensities.beta.values[-1], intensities.gamma.values[0], intensities.gamma.values[-1]], cmap=cmap)
+        # fig.subplots_adjust(bottom=0.7)
+        cax = fig.add_axes([0.1, 0, 0.8, 0.01])
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
+        cbar = fig.colorbar(im, cax=cax, orientation='horizontal')
+        cbar.set_label('Intensity (e$^-$)')
         cbar.formatter.set_useMathText(True)
-        # intensities[:, ::-1].plot(ax=ax, x='beta', y='gamma', cbar_kwargs={'label': 'Intensity (e-)'}, cbar_ax=cax, zorder=0)
-            # TODO: for each slit, calculate 0 order intensity
-            # intensities.clip(0, camera.well_depth, out=intensities)
-        return (intensities, extra_maps), fig, ax, cax
+        return fig, ax, cax
+
+    def order_map(self, extra_maps: xr.Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs):
+        output = []
+        for k in extra_maps.slit.values:
+            v = extra_maps.sel(slit=k)
+            orders = np.unique(v['order'].values)
+            for order in orders:
+                if np.isnan(order):
+                    continue
+                vsel = v.order.values.copy()
+                beta = v.beta.values
+                gamma = v.gamma.values
+                bb, gg = np.meshgrid(beta, gamma)
+                shape = vsel.shape
+                vsel = vsel.flatten()
+                bb = bb.flatten()
+                gg = gg.flatten()
+                idx = np.where(vsel != order)
+                lidx = np.where(vsel == order)
+                bb[idx] = np.nan
+                gg[idx] = np.nan
+                bb = bb.reshape(shape)
+                gg = gg.reshape(shape)
+                vsel = vsel.reshape(shape)
+                output.append((k, order, bb, gg, len(lidx[0])))
+
+        def sortby(x):
+            return x[-1]
+
+        output.sort(key=sortby, reverse=True)
+        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+                                   default_style=default_style, labels=False, fig_kwargs=fig_kwargs)
+        cmap = plt.cm.gist_rainbow
+        norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
+        colors = [cmap(norm(i)) for i in range(len(output))]
+        import random
+        random.shuffle(colors)
+        for kidx, v in enumerate(output):
+            k, order, bb, gg, lidx = v
+            color = colors[kidx]
+            ax.plot(bb, gg, color=color, label=f'{k}: {k} ({order})')
+            ax.axhline(0, color=color, lw=0.5, zorder=0, label=f'{k}: {order}')
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
+        return fig, ax
 # %%
