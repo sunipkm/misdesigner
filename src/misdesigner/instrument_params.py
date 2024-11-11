@@ -157,6 +157,7 @@ class MisCamera:
     pixel_size: float  # pixel size (mm)
     well_depth: float  # well depth (e-)
     exposure: float  # exposure time (s)
+    optical_efficiency: float = 1  # optical efficiency
     # quantum efficiency curve (wavelength, qe)
     qe_curve: Optional[List[List[float], List[float]]] = None
     readout_noise: Optional[float] = None  # readout noise (e-) per pixel
