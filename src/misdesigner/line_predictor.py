@@ -275,8 +275,8 @@ class LinePredictor(MisGrating):
         alph = np.sin(np.deg2rad(alpha))
         gg = np.sin(np.deg2rad(gg)) * self.den
         bb = np.deg2rad(bb)
-        prod = (np.sin(bb) + alph) * gg
-        dprod = gg * np.cos(bb) * np.deg2rad(d_beta)
+        prod = (np.sin(bb) + alph) * gg 
+        dprod = self.den * np.cos(bb) * self.blurs[slit]
         loc = np.where((gg > gmin) & (gg < gmax))
         prod[loc] = np.nan
         dprod[loc] = np.nan
