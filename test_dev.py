@@ -1,5 +1,6 @@
 # %%
 from __future__ import annotations
+import sys
 from time import perf_counter_ns
 from matplotlib import pyplot as plt
 import numpy as np
@@ -22,6 +23,7 @@ mpl.rc('font', **{'family': 'serif',
 mpl.rc('text', usetex=usetex)
 
 # %%
+SYSTEM = 'HMS-A ORIGIN'
 slit_height = 64.44
 grat = MisGrating(400, 442.7, 98.76,
                   {
@@ -39,7 +41,7 @@ grat = MisGrating(400, 442.7, 98.76,
                                 MisMosaicFilter(8.13 + 8, 26.96 + 1.8, 7.5, 27.72, [(6300-50, 6300+50)], name='6300'), # OI, 10nm around 6300
                                 MisMosaicFilter(8.13 + 8 + 7.5, 26.96 + 1.8, 28.57 - 2.68, 27.72, [(7774-50, 7774+50)], name = '7774'), # N2+, 10nm around 4300
                             ]))
-img = LinePredictor('HMS-A ORIGIN', grat, gamma_ofst=0, alpha=-70.8)
+img = LinePredictor(SYSTEM, grat, gamma_ofst=0, alpha=-70.8)
 # %%
 # img.plot_lines([
 #     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -60,11 +62,14 @@ length = max(grat.mosaic.width, grat.mosaic.height)
 IMG_SZ = 1024
 dx = length / IMG_SZ
 camera = MisCamera(254.5, 1, dx, np.inf, 1)
+print('Starting image simulation...', end=' ')
+sys.stdout.flush()
 start = perf_counter_ns()
 ret = img.simulate(source_wl, source_int, camera, report=False)
+print('Done.')
 print(f"Time to simulate ({IMG_SZ} x {IMG_SZ}): {(perf_counter_ns() - start) / 1e9} s")
 # %%
-img.intensity_plot(ret[0], [
+fig, _, _ = img.intensity_plot(ret[0], [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -73,9 +78,10 @@ img.intensity_plot(ret[0], [
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-plt.show()
+fig.savefig(f'{SYSTEM}_intensity.png', dpi=300, bbox_inches='tight')
+plt.close(fig)
 # %%
-img.order_map(ret[1], [
+fig, _ = img.order_map(ret[1], [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -84,9 +90,11 @@ img.order_map(ret[1], [
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-plt.show()
+fig.savefig(f'{SYSTEM}_order_map_all.png', dpi=300, bbox_inches='tight')
+plt.close(fig)
 # %%
 for slit in ret[1].slit.values:
     img.order_map_slit(ret[1], slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-    plt.show()
+    plt.savefig(f'{SYSTEM}_order_map_{slit}.png', dpi=300, bbox_inches='tight')
+    plt.close(fig)
 # %%

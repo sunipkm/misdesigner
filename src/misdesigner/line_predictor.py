@@ -759,7 +759,18 @@ class LinePredictor(MisGrating):
             0, camera.well_depth, out=extra_maps.intensity.values)
         return (intensities, extra_maps)
 
-    def intensity_plot(self, intensities: DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs):
+    def intensity_plot(self, intensities: DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs)-> Tuple[plt.Figure, plt.Axes, plt.Axes]:
+        """## Plot the intensity map on the mosaic plane.
+
+        ### Args:
+            - `intensities (DataArray)`: Intensity map.
+            - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
+            - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
+            - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
+
+        ### Returns:
+            - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
+        """
         fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
