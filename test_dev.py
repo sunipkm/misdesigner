@@ -40,7 +40,25 @@ grat = MisGrating(400, 442.7, 98.76,
                             ]))
 img = LinePredictor('HMS-A ORIGIN', grat, gamma_ofst=0, alpha=-70.8)
 # %%
-img.plot_lines([
+# img.plot_lines([
+#     MisFeatures(6300, plot_styles={'color': 'red'}),
+#     MisFeatures(5577, plot_styles={'color': 'green'}),
+#     MisFeatures(7774, plot_styles={'color': 'brown'}),
+#     MisFeatures(4278, plot_styles={'color': 'violet'}),
+#     MisFeatures(6563, plot_styles={'color': 'orange'}),
+#     MisFeatures(4861, plot_styles={'color': 'cyan'}),
+#     7821, 7841, 6522, 6568
+# ])
+# %%
+sol = xr.load_dataset('solar_spectra_air.nc')
+source_wl = sol['wavelength'].values*10 # nm -> Angstrom
+source_int = sol['irradiance'].values/10 # W/m^2/nm -> W/m^2/Angstrom
+
+# %%
+length = max(grat.mosaic.width, grat.mosaic.height)
+dx = length / 1024
+camera = MisCamera(254.5, 1, dx, np.inf, 1)
+ret = img.simulate(source_wl, source_int, camera, [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -48,17 +66,17 @@ img.plot_lines([
     MisFeatures(6563, plot_styles={'color': 'orange'}),
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
-])
+], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
+# plt.show()
 # %%
-sol = xr.load_dataset('solar_spectra_air.nc')
-source_wl = sol['wavelength'].values*10
-source_int = sol['irradiance'].values
-# %%
-length = max(grat.mosaic.width, grat.mosaic.height)
-dx = length / 1024
-camera = MisCamera(1, dx, np.inf, 1)
-ret = img.simulate(source_wl, source_int, camera)
-
-plt.imshow(ret, aspect='auto', cmap='inferno')
-plt.show()
+# fig, ax, cax = img._plot_lines(False, img.alpha, [
+#     MisFeatures(6300, plot_styles={'color': 'red'}),
+#     MisFeatures(5577, plot_styles={'color': 'green'}),
+#     MisFeatures(7774, plot_styles={'color': 'brown'}),
+#     MisFeatures(4278, plot_styles={'color': 'violet'}),
+#     MisFeatures(6563, plot_styles={'color': 'orange'}),
+#     MisFeatures(4861, plot_styles={'color': 'cyan'}),
+#     7821, 7841, 6522, 6568
+# ], mode='Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
+# im = ax.pcolormesh(ret.beta.values[::-1], ret.gamma.values, ret.values[:, ::-1], shading='auto')
 # %%

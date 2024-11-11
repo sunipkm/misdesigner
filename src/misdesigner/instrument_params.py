@@ -73,6 +73,12 @@ class MisMosaicFilter:
             frange.append(range)
         self.ranges = frange
 
+    def get_xrange(self):
+        return (-self.x, -self.x - self.width)
+    
+    def get_yrange(self):
+        return (self.y, self.y + self.height)
+
     def check_position(self, wavelength: int, beta: np.ndarray, gamma: np.ndarray) -> np.ndarray:
         valid = np.full(beta.shape, False)
         for range in self.ranges:
@@ -146,14 +152,30 @@ class MisGratingCfg:
 
 @dataclass
 class MisCamera:
+    aperture: float # aperture area (mm^2)
     scale: float  # pixel scale (mm/pixel)
     pixel_size: float  # pixel size (mm)
     well_depth: float  # well depth (e-)
     exposure: float  # exposure time (s)
     # quantum efficiency curve (wavelength, qe)
     qe_curve: Optional[List[List[float], List[float]]] = None
-    readout_noise: Optional[float] = 0.0  # readout noise (e-) per pixel
-    dark_current: Optional[float] = 0.0  # dark current (e-/s/pixel)
+    readout_noise: Optional[float] = None  # readout noise (e-) per pixel
+    dark_current: Optional[float] = None  # dark current (e-/s/pixel)
+
+    def __init__(self, aperture: float, scale: float, pixel_size: float, well_depth: float, exposure: float, qe_curve: Optional[List[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
+        self.aperture = aperture
+        self.scale = scale
+        self.pixel_size = pixel_size
+        self.well_depth = well_depth
+        self.exposure = exposure
+        if qe_curve is not None:
+            if len(qe_curve) != 2:
+                raise ValueError('Quantum efficiency curve should be a list of two lists.')
+            if len(qe_curve[0]) != len(qe_curve[1]):
+                raise ValueError('Quantum efficiency curve should have the same length of wavelength and qe.')
+        self.qe_curve = qe_curve
+        self.readout_noise = readout_noise
+        self.dark_current = dark_current
 
 
 @dataclass
