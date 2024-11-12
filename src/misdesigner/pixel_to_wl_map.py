@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 from .utils import find_nearest, open_fits
-from .line_predictor import HMS_ImagePredictor
+from .instrument_model import HMS_ImagePredictor
 # %%
 
 

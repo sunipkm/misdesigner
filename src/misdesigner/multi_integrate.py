@@ -13,6 +13,14 @@ if len(LIB) == 0:
     raise FileNotFoundError(f'No shared library found in {DIR} with name {LIBROOT}.*')
 LIB = LIB[0]
 DLL = ctypes.CDLL(LIB)
+if DLL is None:
+    raise FileNotFoundError(f'Could not load shared library {LIB}')
+
+DLL.create_data.restype = POINTER(c_void_p)
+DLL.create_wavelength_to_rgb.restype = POINTER(c_void_p)
+DLL.create_args.restype = POINTER(c_void_p)
+DLL.create_unsort.restype = POINTER(c_void_p)
+
 
 def multi_integrate(x: np.ndarray, y: np.ndarray, low_lim: np.ndarray, high_lim: np.ndarray) -> np.ndarray:
     """## Integrate multiple regions of a 1-D curve.

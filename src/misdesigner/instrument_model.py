@@ -22,13 +22,13 @@ from .multi_integrate import multi_integrate, unsort, wavelength_to_rgb
 PlotMode = Literal['Angle', 'Mosaic']
 
 
-class LinePredictor(MisGrating):
+class InstrumentModel(MisGrating):
     """## The core of the MISDesigner package.
     This class is used to predict the spectral lines on the image plane for a given set of wavelengths.
     The class is initialized with the instrument optics parameters and the grating parameters.
     """
     @staticmethod
-    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> LinePredictor:
+    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> InstrumentModel:
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
         ext = os.path.splitext(configfile)[-1].lower()
@@ -38,7 +38,7 @@ class LinePredictor(MisGrating):
         else:
             raise TypeError(
                 f"Invalid file extension {ext}. Please provide a .toml file.")
-        return LinePredictor(params.system, params.optics, params.instrument.alpha, gamma_ofst=params.instrument.gamma_ofst, input_wls=params.lines)
+        return InstrumentModel(params.system, params.optics, params.instrument.alpha, gamma_ofst=params.instrument.gamma_ofst, input_wls=params.lines)
 
     def store(self, path: str, overwrite: bool = False):
         instr = MisGratingCfg(self.alpha, self.gamma_ofst)
@@ -121,7 +121,8 @@ class LinePredictor(MisGrating):
         if self.gamma_min > self.gamma_max:
             self.gamma_min, self.gamma_max = self.gamma_max, self.gamma_min
         self.mosaic_bottom_left = (self._image_deg_to_mm(
-            self.beta_max), self._image_deg_to_mm(self.gamma_min))  # in instrument coord
+            # in instrument coord
+            self.beta_max), self._image_deg_to_mm(self.gamma_min))
         self.blurs = self._slit_blurs()
 
     def _image_deg_to_mm(self, deg):
@@ -275,7 +276,7 @@ class LinePredictor(MisGrating):
         alph = np.sin(np.deg2rad(alpha))
         gg = np.sin(np.deg2rad(gg)) * self.den
         bb = np.deg2rad(bb)
-        prod = (np.sin(bb) + alph) * gg 
+        prod = (np.sin(bb) + alph) * gg
         dprod = self.den * np.cos(bb) * self.blurs[slit]
         loc = np.where((gg > gmin) & (gg < gmax))
         prod[loc] = np.nan
@@ -319,7 +320,8 @@ class LinePredictor(MisGrating):
                 prod.gamma_arr.values[:, 0],
                 ord, wavelength)  # grating coordinate
             res = ord*wavelength/(self.den*np.cos(np.deg2rad(beta))
-                                  * self.blurs[prod.attrs['slit']])  # mλ/(d*cos(β))
+                                  # mλ/(d*cos(β))
+                                  * self.blurs[prod.attrs['slit']])
             # res = np.sin(np.deg2rad(prod.gamma_arr.values[:, 0])) \
             #     * (np.sin(np.deg2rad(beta)) + np.sin(np.deg2rad(prod.attrs['alpha']))) \
             #     / (self.blurs[prod.attrs['slit']]*np.cos(np.deg2rad(beta))) # sin(γ)*(sin(β)+sin(α))/(B*cos(β))
@@ -558,16 +560,140 @@ class LinePredictor(MisGrating):
         self._lines = lines
         self._annot = annot
 
+    def mosaic_map(self,
+                   camera: MisCamera, *,
+                   alpha: Optional[Numeric] = None,
+                   report: bool = True) -> Dataset:
+        """## Generate a map of wavelengths on the mosaic plane for each slit.
+
+        ### Args:
+            - `camera (MisCamera)`: Throughput and detector specifications. See `MisCamera`.
+            - `alpha (Optional[Numeric], optional)`: Grating rotation angle in degrees. Defaults to None. If None, the current grating angle is used.
+            - `report (bool, optional)`: Print the progress report. Defaults to True.
+
+        ### Returns:
+            - `Dataset`: A Dataset object containing the wavelength, resolution, and order for each slit on the mosaic plane.
+        """
+        def report_print(show: bool, msg: str, end: str = '\n'):
+            if show:
+                print(msg, end=end)
+
+        if alpha is not None:
+            self.alpha = alpha
+
+        # scale the pixel size to the mosaic coordinate
+        dx = abs(camera.pixel_size / camera.scale)
+        # in mosaic coordinates, goes from right to left, origin at bottom-left corner
+        beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
+        # in mosaic coordinates, goes from bottom to top
+        gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
+        # print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
+        beta_mesh, _ = np.meshgrid(beta_grid, gamma_grid)
+        prods: Dict[str, Optional[Dataset]] = {}
+        for slit in self.slits.keys():
+            prod = self._grating_product_sim(
+                slit, self.alpha, beta_grid, gamma_grid)
+            if prod is not None:
+                prods[slit] = prod
+        output = Dataset(
+            {
+                'wavelength': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
+                'resolution': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
+                'order': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
+            },
+            coords={
+                'gamma': gamma_grid,
+                'beta': beta_grid,
+                'slit': list(prods.keys()),
+            },
+            attrs={
+                'alpha': self.alpha,
+                'gmin': [prod.attrs['gmin'] for prod in prods.values()],
+                'gmax': [prod.attrs['gmin'] for prod in prods.values()],
+                'system': self.hmsVersion,
+            }
+        )
+
+        for window in self.mosaic.windows:
+            beta_range = window.get_xrange()
+            gamma_range = window.get_yrange()
+            report_print(report,
+                         f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
+            for skey, slit in self.slits.items():
+                prod = prods[skey]
+                if prod is None:
+                    continue
+                prod: Dataset = prod
+                # it is guaranteed to be not None at this point
+                props: Dataset = output.sel(slit=skey)
+                wl_range = []
+                for r in window.ranges:
+                    if slit.ranges is not None and len(slit.ranges) > 0:
+                        wl_range += common_range(slit.ranges, r)
+                    else:
+                        wl_range.append(r)
+                for r in wl_range:
+                    rmin = r[0]
+                    rmax = r[1]
+                    grange = common_range(
+                        [(prod.attrs["gmin"], prod.attrs["gmax"])], gamma_range)
+                    if len(grange) != 1:
+                        if len(grange) > 1:
+                            warnings.warn(
+                                f'Gamma range for slit {skey} is outside the window range {window.name}: Mosaic: {gamma_range}, Slit: ({prod.attrs["gmin"]}, {prod.attrs["gmax"]}).')
+                        continue
+                    grange = grange[0]
+
+                    bmin = np.min(beta_range)
+                    bmax = np.max(beta_range)
+                    gmin = np.min(grange)
+                    gmax = np.max(grange)
+                    prod_s = prod.sel(beta=slice(*beta_range),
+                                      gamma=slice(*grange))
+                    props_s = props.sel(beta=slice(*beta_range),
+                                        gamma=slice(*grange))
+
+                    n1_min, n1_max = sign_ceil(
+                        np.nanmin(prod_s.grating_product.values / rmin)), sign_floor(np.nanmax(prod_s.grating_product.values / rmin))
+                    n2_min, n2_max = sign_ceil(
+                        np.nanmin(prod_s.grating_product.values / rmax)), sign_floor(np.nanmax(prod_s.grating_product.values / rmax))
+                    n_min = int(min(n1_min, n2_min))
+                    n_max = int(max(n1_max, n2_max))
+                    if n_min > n_max:
+                        n_min, n_max = n_max, n_min
+
+                    report_print(report,
+                                 f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
+
+                    for n in range(n_min, n_max + 1):
+                        if n == 0:
+                            continue
+                        lam = prod_s.grating_product.values / n
+                        dlam = prod_s.d_nx.values / n / 2
+                        report_print(report,
+                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', ')
+                        sys.stdout.flush()
+                        rvalid = np.where((lam >= rmin) & (lam <= rmax))
+                        if len(rvalid[0]) == 0:
+                            report_print(report, 'No valid wavelengths.')
+                            continue
+                        props_s.order.values[rvalid] = n
+                        props_s.wavelength.values[rvalid] = lam[rvalid]
+                        props_s.resolution.values[rvalid] = lam[rvalid] / \
+                            dlam[rvalid]
+            report_print(report, f'Window {window.name} processed.')
+        return output
+
     def simulate(self,
                  source_wl: np.ndarray, source_i: np.ndarray,
                  camera: MisCamera, *,
                  alpha: Optional[Numeric] = None,
                  report: bool = True,
-                 use_c: bool = True) -> Tuple[DataArray, Dataset]:
+                 use_c: bool = True) -> Dataset:
         """## Simulate the instrument observation of a source spectrum.
 
         ### Args:
-            - `source_wl (np.ndarray)`: Source spectrum wavelengths in Angstrom.
+            - `source_wl (np.ndarray)`: Source spectrum wavelengths in Angstrom. Must be sorted in ascending order, and cover the entire range of interest.
             - `source_i (np.ndarray)`: Source spectrum intensities in W/m^2/Anstrom.
             - `camera (MisCamera)`: Throughput and detector specifications. See `MisCamera`.
             - `alpha (Optional[Numeric], optional)`: Grating angle in degrees. Defaults to None.
@@ -592,6 +718,10 @@ class LinePredictor(MisGrating):
             if show:
                 print(msg, end=end)
 
+        argsort = np.argsort(source_wl)
+        source_wl = source_wl[argsort]
+        source_i = source_i[argsort]
+
         if alpha is not None:
             self.alpha = alpha
 
@@ -604,9 +734,6 @@ class LinePredictor(MisGrating):
         # print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
         beta_mesh, _ = np.meshgrid(beta_grid, gamma_grid)
         # print(f'Mesh size: {beta_mesh.shape[0]}x{beta_mesh.shape[1]}')
-        intensities = np.zeros(beta_mesh.shape, dtype=float)
-        intensities = DataArray(intensities, coords={
-            'gamma': gamma_grid, 'beta': beta_grid}, dims=['gamma', 'beta'])
         prods: Dict[str, Optional[Dataset]] = {}
         for slit in self.slits.keys():
             prod = self._grating_product_sim(
@@ -616,12 +743,13 @@ class LinePredictor(MisGrating):
         valid_keys = [k if v is not None else None for k,
                       v in self.slits.items()]
         valid_keys = list(filter(lambda x: x is not None, valid_keys))
-        extra_maps = Dataset(
+        output = Dataset(
             {
-                'intensity': (['gamma', 'beta', 'slit'], np.zeros((*intensities.values.shape, len(valid_keys)), dtype=float)),
-                'wavelength': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
-                'resolution': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
-                'order': (['gamma', 'beta', 'slit'], np.full((*intensities.values.shape, len(valid_keys)), np.nan, dtype=float)),
+                'total_intensity': (('gamma', 'beta'), np.zeros(beta_mesh.shape, dtype=float), {'units': 'e^-', 'description': 'Total number of electrons'}),
+                'intensity': (['gamma', 'beta', 'slit'], np.zeros((*beta_mesh.shape, len(valid_keys)), dtype=float), {'units': 'e^-', 'description': 'Number of electrons per slit'}),
+                'wavelength': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
+                'resolution': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
+                'order': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
             },
             coords={
                 'gamma': gamma_grid,
@@ -650,7 +778,7 @@ class LinePredictor(MisGrating):
                     continue
                 prod: Dataset = prod
                 # it is guaranteed to be not None at this point
-                props: Dataset = extra_maps.sel(slit=skey)
+                props: Dataset = output.sel(slit=skey)
                 wl_range = []
                 for r in window.ranges:
                     if slit.ranges is not None and len(slit.ranges) > 0:
@@ -677,7 +805,7 @@ class LinePredictor(MisGrating):
                                       gamma=slice(*grange))
                     props_s = props.sel(beta=slice(*beta_range),
                                         gamma=slice(*grange))
-                    intensities_s = intensities.sel(
+                    intensities_s = output.total_intensity.sel(
                         beta=slice(*beta_range), gamma=slice(*grange))
 
                     n1_min, n1_max = sign_ceil(
@@ -744,7 +872,8 @@ class LinePredictor(MisGrating):
                         intensity = intensity * \
                             lam[rvalid] * INV_PLANK_CONST / \
                             SPEED_LIGHT  # convert to photons
-                        intensity = intensity * qe * camera.optical_efficiency  # apply QE and optical efficiency
+                        # apply QE and optical efficiency
+                        intensity = intensity * qe * camera.optical_efficiency
                         if camera.readout_noise is not None and camera.readout_noise > 0:  # readout noise
                             intensity += np.random.poisson(
                                 0, camera.readout_noise, intensity.shape)
@@ -754,12 +883,12 @@ class LinePredictor(MisGrating):
                         # intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe)
             report_print(report, f'Window {window.name} processed.')
         # return intensities
-        intensities.values.clip(0, camera.well_depth, out=intensities.values)
-        extra_maps.intensity.values.clip(
-            0, camera.well_depth, out=extra_maps.intensity.values)
-        return (intensities, extra_maps)
+        output.total_intensity.values.clip(0, camera.well_depth, out=output.total_intensity.values)
+        output.intensity.values.clip(
+            0, camera.well_depth, out=output.intensity.values)
+        return output
 
-    def intensity_plot(self, intensities: DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs)-> Tuple[plt.Figure, plt.Axes, plt.Axes]:
+    def intensity_plot(self, intensities: DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
         """## Plot the intensity map on the mosaic plane.
 
         ### Args:
@@ -785,12 +914,12 @@ class LinePredictor(MisGrating):
         cbar.set_label('Intensity (e$^-$)')
         cbar.formatter.set_useMathText(True)
         return fig, ax, cax
-    
-    def intensity_plot_rgb(self, intensity: DataArray, extra_maps: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, gamma: Numeric = 0.8, **fig_kwargs)-> Tuple[plt.Figure, plt.Axes]:
+
+    def intensity_plot_rgb(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, gamma: Numeric = 0.8, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the intensity map on the mosaic plane.
 
         ### Args:
-            - `intensities (DataArray)`: Intensity map.
+            - `input (Dataset)`: Intensity map obtained using the `InstrumentModel.simulate()` function.
             - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
             - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
@@ -804,31 +933,33 @@ class LinePredictor(MisGrating):
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
-
-        rgb = np.zeros((*extra_maps.wavelength.values.shape[:-1], 3), dtype=float)
-        for k in extra_maps.slit.values:
+        intensity: DataArray = input.total_intensity
+        rgb = np.zeros(
+            (*input.wavelength.values.shape[:-1], 3), dtype=float)
+        for k in input.slit.values:
             # print(f'Processing slit {k}...')
-            v = extra_maps.sel(slit=k)
+            v = input.sel(slit=k)
             wavelengths = v.wavelength.values
             r, g, b = wavelength_to_rgb(wavelengths, gamma)
             temp = np.stack([r, g, b], axis=-1)
-            scale = (v.intensity.values / np.nanmax(intensity.values))[:, :, np.newaxis]
+            scale = (v.intensity.values /
+                     np.nanmax(intensity.values))[:, :, np.newaxis]
             temp *= scale
             np.nan_to_num(temp, copy=False)
             rgb += temp
             # print(f'Slit {k} processed: R ({np.nanmin(rgb_[:, :, 0])}:{np.nanmax(rgb_[:, :, 0])}), G ({np.nanmin(rgb_[:, :, 1])}:{np.nanmax(rgb_[:, :, 1])}), B ({np.nanmin(rgb_[:, :, 2])}:{np.nanmax(rgb_[:, :, 2])})')
             del temp, r, g, b
         rgb = np.clip(rgb, 0, 1)
-        im = ax.imshow(rgb, origin='lower', extent=[
-                       extra_maps.beta.values[0], extra_maps.beta.values[-1], extra_maps.gamma.values[0], extra_maps.gamma.values[-1]])
+        _ = ax.imshow(rgb, origin='lower', extent=[
+            input.beta.values[0], input.beta.values[-1], input.gamma.values[0], input.gamma.values[-1]])
         # fig.subplots_adjust(bottom=0.7)
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
         return fig, ax
 
-    def order_map(self, extra_maps: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def order_map(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the different orders illuminating different sections of the mosaic for all slits.
         ### Args:
-            - `extra_maps (Dataset)`: Dataset containing the intensity, wavelength map, resolution map, and order map for each slit.
+            - `input (Dataset)`: Dataset containing the intensity, wavelength map, resolution map, and order map for each slit.
             - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
 
@@ -836,8 +967,8 @@ class LinePredictor(MisGrating):
             - `Tuple[plt.Figure, plt.Axes]`: Created figure and axes objects.
         """
         output = []
-        for k in extra_maps.slit.values:
-            v = extra_maps.sel(slit=k)
+        for k in input.slit.values:
+            v = input.sel(slit=k)
             orders = np.unique(v['order'].values)
             for order in orders:
                 if np.isnan(order):
@@ -874,15 +1005,16 @@ class LinePredictor(MisGrating):
             k, order, bb, gg, lidx = v
             color = colors[kidx]
             ax.plot(bb, gg, color=color, zorder=kidx+5)
-            ax.axhline(0, color=color, lw=0.5, zorder=0, label=f'{k}: {int(order)}')
+            ax.axhline(0, color=color, lw=0.5, zorder=0,
+                       label=f'{k}: {int(order)}')
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
         return fig, ax
 
-    def order_map_slit(self, extra_maps: Dataset, slit: str, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def order_map_slit(self, input: Dataset, slit: str, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the order map for a specific slit.
 
         ### Args:
-            - `extra_maps (Dataset)`: Dataset containing the intensity, wavelength map, resolution map, and order map for each slit.
+            - `input (Dataset)`: Dataset containing the intensity, wavelength map, resolution map, and order map for each slit.
             - `slit (str)`: Slit key.
             - `wavelengths (List[int  |  MisFeatures], optional)`: Pass the spectral features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default line plot style. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
@@ -893,9 +1025,9 @@ class LinePredictor(MisGrating):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes]`: Created figure and axes objects.
         """
-        if slit not in extra_maps.slit.values:
+        if slit not in input.slit.values:
             raise ValueError(f'Slit {slit} not found in the dataset.')
-        v = extra_maps.sel(slit=slit)
+        v = input.sel(slit=slit)
         orders = np.unique(v['order'].values)
         output = []
         for order in orders:
@@ -920,7 +1052,7 @@ class LinePredictor(MisGrating):
 
         def sortby(x):
             return x[-1]
-        
+
         def filterby(x):
             if x[-1] < 200:
                 return False

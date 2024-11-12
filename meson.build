@@ -17,14 +17,18 @@ compiler = meson.get_compiler('c')
 
 add_global_arguments('-O3', language : 'c')
 add_global_arguments('-c', language : 'c')
+add_global_arguments('-fPIC', language : 'c')
+add_global_arguments('-Wall', language : 'c')
+add_global_arguments('-std=c11', language : 'c')
 
-omp_dep = dependency('openmp', required: false)
 m_dep = compiler.find_library('m', required: true)
 
+omp_dep = dependency('openmp', required: false)
 if omp_dep.found()
-  # OK
+  deps = [m_dep, omp_dep]
 else
   add_global_arguments('-DNO_OMP', language : 'c')
+  deps = [m_dep,]
 endif
 
 c_cpp_srcs = [
@@ -38,13 +42,13 @@ lib = shared_library('integrate_unsort_lib',
   include_directories: 'src/c_cpp',
   install : true,
   install_dir : py.get_install_dir() / 'misdesigner',
-  dependencies: [omp_dep, m_dep],
+  dependencies: deps,
 )
 
 py.install_sources(
     'src/misdesigner/__init__.py',
     'src/misdesigner/instrument_params.py',
-    'src/misdesigner/line_predictor.py',
+    'src/misdesigner/instrument_model.py',
     'src/misdesigner/multi_integrate.py',
     'src/misdesigner/utils.py',
     subdir: 'misdesigner',

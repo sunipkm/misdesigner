@@ -42,7 +42,7 @@ grat = MisGrating(400, 442.7, 98.76,
                                 MisMosaicFilter(8.13 + 8, 26.96 + 1.8, 7.5, 27.72, [(6320-50, 6320+50)], name='6300'), # OI, 10nm around 6300
                                 MisMosaicFilter(8.13 + 8 + 7.5, 26.96 + 1.8, 28.57 - 2.68, 27.72, [(7750-125, 7750+125)], name = '7774'), # N2+, 10nm around 4300
                             ]))
-img = LinePredictor(SYSTEM, grat, gamma_ofst=0, alpha=-70.8)
+img = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-70.8)
 # %%
 img.plot_lines([
     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -71,7 +71,7 @@ ret = img.simulate(source_wl, source_int, camera, report=False)
 print('Done.')
 print(f"Time to simulate ({IMG_SZ} x {IMG_SZ}): {(perf_counter_ns() - start) / 1e9} s")
 # %%
-fig, _, _ = img.intensity_plot(ret[0], [
+fig, _, _ = img.intensity_plot(ret.total_intensity, [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -84,7 +84,7 @@ fig.savefig(f'{SYSTEM}_intensity_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight'
 plt.close(fig)
 print('Saved intensity plot.')
 # %%
-fig, _ = img.intensity_plot_rgb(ret[0], ret[1], [
+fig, _ = img.intensity_plot_rgb(ret, [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -97,7 +97,7 @@ fig.savefig(f'{SYSTEM}_intensity_rgb_{SLIT_WIDTH}.png', dpi=300, bbox_inches='ti
 plt.close(fig)
 print('Saved RGB intensity plot.')
 # %%
-fig, _ = img.order_map(ret[1], [
+fig, _ = img.order_map(ret, [
     MisFeatures(6300, plot_styles={'color': 'red'}),
     MisFeatures(5577, plot_styles={'color': 'green'}),
     MisFeatures(7774, plot_styles={'color': 'brown'}),
@@ -110,8 +110,8 @@ fig.savefig(f'{SYSTEM}_order_map_all_{SLIT_WIDTH}.png', dpi=300, bbox_inches='ti
 plt.close(fig)
 print('Saved total order map.')
 # %%
-for slit in ret[1].slit.values:
-    img.order_map_slit(ret[1], slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
+for slit in ret.slit.values:
+    img.order_map_slit(ret, slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
     plt.savefig(f'{SYSTEM}_order_map_{slit}_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
     plt.close(fig)
     print(f'Saved order map for slit {slit}.')

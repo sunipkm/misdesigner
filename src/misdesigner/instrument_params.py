@@ -41,6 +41,28 @@ class MisMosaic:
             windows = []
         self.windows = windows
 
+    def min_lambda(self) -> int:
+        """## Minimum Wavelength
+
+        ### Returns:
+            - `int`: minimum wavelength in Angstrom
+        """
+        if not self.windows:
+            return -np.inf
+        lams = [window.min_lambda() for window in self.windows]
+        return min(lams)
+    
+    def max_lambda(self) -> int:
+        """## Maximum Wavelength
+
+        ### Returns:
+            - `int`: maximum wavelength in Angstrom
+        """
+        if not self.windows:
+            return np.inf
+        lams = [window.max_lambda() for window in self.windows]
+        return max(lams)
+
 
 @dataclass
 class MisMosaicFilter:
@@ -90,6 +112,28 @@ class MisMosaicFilter:
         valid &= (-self.x >= beta) & (beta >= -self.x - self.width)
         valid &= (self.y <= gamma) & (gamma <= self.y + self.height)
         return valid
+    
+    def min_lambda(self) -> int:
+        """## Minimum Wavelength
+
+        ### Returns:
+            - `int`: minimum wavelength in Angstrom
+        """
+        if not self.ranges:
+            return -np.inf
+        lams = [range[0] for range in self.ranges]
+        return min(lams)
+    
+    def max_lambda(self) -> int:
+        """## Maximum Wavelength
+
+        ### Returns:
+            - `int`: maximum wavelength in Angstrom
+        """
+        if not self.ranges:
+            return np.inf
+        lams = [range[1] for range in self.ranges]
+        return max(lams)
 
 
 @dataclass
@@ -117,6 +161,28 @@ class MisSlit:
                 range = [range[0], range[1]]
             frange.append(range)
         self.ranges = frange
+
+    def min_lambda(self) -> int:
+        """## Minimum Wavelength
+
+        ### Returns:
+            - `int`: minimum wavelength in Angstrom
+        """
+        if not self.ranges:
+            return -np.inf
+        lams = [range[0] for range in self.ranges]
+        return min(lams)
+    
+    def max_lambda(self) -> int:
+        """## Maximum Wavelength
+
+        ### Returns:
+            - `int`: maximum wavelength in Angstrom
+        """
+        if not self.ranges:
+            return np.inf
+        lams = [range[1] for range in self.ranges]
+        return max(lams)
 
 
 @dataclass
