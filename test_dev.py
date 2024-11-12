@@ -53,7 +53,6 @@ img.plot_lines([
     MisFeatures(4861, plot_styles={'color': 'cyan'}),
     7821, 7841, 6522, 6568
 ])
-plt.show()
 # %%
 sol = xr.load_dataset('solar_spectra_air.nc')
 source_wl = sol['wavelength'].values*10 # nm -> Angstrom

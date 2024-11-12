@@ -341,11 +341,10 @@ class InstrumentModel(MisGrating):
             - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
         """
-        fig, ax = self._plot_lines(True, alpha, wavelengths, mode=mode,
+        self._plot_lines(True, alpha, wavelengths, mode=mode,
                                    default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
-        return fig, ax
 
-    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=NUM_COLORS - 1)
@@ -459,7 +458,10 @@ class InstrumentModel(MisGrating):
                         ax.text(-window.x, window.y+window.height, window.name,
                                 va='top', ha='left', zorder=99, color=labelcolor)
         ax.set_aspect('equal')
-        return (fig, ax)
+        if sliders:
+            plt.show()
+        else:
+            return fig, ax
 
     def _update_alpha_plot_lines(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool):
         self.alpha = alpha
