@@ -4,7 +4,6 @@ import sys
 from time import perf_counter_ns
 from matplotlib import pyplot as plt
 import numpy as np
-import tosholi
 import matplotlib as mpl
 from misdesigner import *
 import yaml
@@ -24,8 +23,13 @@ mpl.rc('text', usetex=usetex)
 
 # %%
 SYSTEM = 'HMS-A ORIGIN'
-SLIT_WIDTH = 50
-slit_height = 64.44
+SLIT_WIDTH = 75
+SLIT_TO_EDGE = -7 # -3.55 -> -70.8 (α)
+EDGE_TO_MOSAIC = -2.3
+MOSAIC_WIDTH = 52.5
+MOSAIC_X0 = SLIT_TO_EDGE + EDGE_TO_MOSAIC
+MOSAIC_X1 = MOSAIC_X0 - MOSAIC_WIDTH
+slit_height = 66.5
 grat = MisGrating(400, 442.7, 98.76,
                   {
                       'BL': MisSlit(29, -slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2, ranges=[(3150, 4450)]), # (7150, 10950)]),
@@ -33,7 +37,7 @@ grat = MisGrating(400, 442.7, 98.76,
                       'TL': MisSlit(29, slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2, ranges=[(5900, np.inf)]),
                       'TR': MisSlit(0, slit_height / 4, SLIT_WIDTH*1e-3, slit_height / 2, ranges=[(4350, 5000)]),
                   },
-                  MisMosaic((-5.85 - 58.35)*0.5, (-1.8+2.5)/2, 24.63 + 27.57 + 0.3,  27.72 + 26.96 + 1.8 + 2.5,
+                  MisMosaic((MOSAIC_X0 + MOSAIC_X1)*0.5, (-1.8+2.5), 24.63 + 27.57 + 0.3,  27.72 + 26.96 + 1.8 + 2.5,
                             [
                                 MisMosaicFilter(0, 1.8, 24.63, 26.96, [(4860-50, 4861+50)], name='Hβ'), # Hβ, 20nm around 4861
                                 MisMosaicFilter(24.63, 1.8, 27.57 - 2.68, 26.96, [(6500-125, 6563+125)], name = 'Hα'), # Hα, 20nm around 6563
@@ -42,7 +46,7 @@ grat = MisGrating(400, 442.7, 98.76,
                                 MisMosaicFilter(8.13 + 8, 26.96 + 1.8, 7.5, 27.72, [(6320-50, 6320+50)], name='6300'), # OI, 10nm around 6300
                                 MisMosaicFilter(8.13 + 8 + 7.5, 26.96 + 1.8, 28.57 - 2.68, 27.72, [(7750-125, 7750+125)], name = '7774'), # N2+, 10nm around 4300
                             ]))
-img = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-70.8)
+img = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-71.1)
 # %%
 img.plot_lines([
     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -80,8 +84,8 @@ fig, _, _ = img.intensity_plot(ret.total_intensity, [
     7821, 7841, 6522, 6568
 ], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
 fig.savefig(f'{SYSTEM}_intensity_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
-plt.close(fig)
 print('Saved intensity plot.')
+plt.show()
 # %%
 fig, _ = img.intensity_plot_rgb(ret, [
     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -116,3 +120,4 @@ for slit in ret.slit.values:
     print(f'Saved order map for slit {slit}.')
 # %%
 print('Finished.\n')
+# %%

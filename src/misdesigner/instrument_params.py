@@ -1,11 +1,12 @@
 # %%
 from __future__ import annotations
 import os
-from typing import Dict, List, Optional, SupportsFloat as Numeric, Tuple
+from typing import Any, Dict, List, Optional, SupportsFloat as Numeric, Tuple
 from dataclasses import dataclass
+from dataclasses_json import dataclass_json
 import numpy as np
 
-
+@dataclass_json
 @dataclass
 class MisGrating:
     """## Instrument Optics Parameters
@@ -19,6 +20,7 @@ class MisGrating:
     mosaic: MisMosaic
 
 
+@dataclass_json
 @dataclass
 class MisMosaic:
     """## Instrument Mosaic Parameters
@@ -64,6 +66,7 @@ class MisMosaic:
         return max(lams)
 
 
+@dataclass_json
 @dataclass
 class MisMosaicFilter:
     """## Instrument Mosaic Filter Parameters
@@ -75,10 +78,10 @@ class MisMosaicFilter:
     y: float
     width: float
     height: float
-    ranges: List[List[int]]
+    ranges: List[Tuple[float, float]]
     name: Optional[str] = None
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[int, int]] = [], name: Optional[str] = None):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]] = [], name: Optional[str] = None):
         self.x = x
         self.y = y
         self.width = width
@@ -89,9 +92,9 @@ class MisMosaicFilter:
             if len(range) != 2:
                 continue
             if range[0] > range[1]:
-                range = [range[1], range[0]]
+                range = (range[1], range[0])
             else:
-                range = [range[0], range[1]]
+                range = (range[0], range[1])
             frange.append(range)
         self.ranges = frange
 
@@ -136,6 +139,7 @@ class MisMosaicFilter:
         return max(lams)
 
 
+@dataclass_json
 @dataclass
 class MisSlit:
     """## Instrument Slit Parameters
@@ -144,9 +148,9 @@ class MisSlit:
     y: float
     width: float
     height: float
-    ranges: List[List[int]]
+    ranges: List[Tuple[float, float]]
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[int, int]] = []):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]] = []):
         self.x = x
         self.y = y
         self.width = width
@@ -156,9 +160,9 @@ class MisSlit:
             if len(range) != 2:
                 continue
             if range[0] > range[1]:
-                range = [range[1], range[0]]
+                range = (range[1], range[0])
             else:
-                range = [range[0], range[1]]
+                range = (range[0], range[1])
             frange.append(range)
         self.ranges = frange
 
@@ -185,6 +189,7 @@ class MisSlit:
         return max(lams)
 
 
+@dataclass_json
 @dataclass
 class MisFeatures:
     """## Instrument spectral features
@@ -192,7 +197,7 @@ class MisFeatures:
     wavelength: int  # wavelength (Angstrom)
     # key of slit from which light ends up to this panel
     slit_key: str
-    plot_styles: Dict[str, int | float | str]  # color
+    plot_styles: Dict[str, Any]  # color
     name: str
 
     def __init__(self, wavelength: int, slit_key: Optional[str] = None, plot_styles: Optional[dict] = None, name: Optional[str] = None):
@@ -208,6 +213,7 @@ class MisFeatures:
         self.name = name
 
 
+@dataclass_json
 @dataclass
 class MisGratingCfg:
     """## Instrument Adjustment Parameters
@@ -216,6 +222,7 @@ class MisGratingCfg:
     gamma_ofst: float = 0  # grating incidence angle (deg)
 
 
+@dataclass_json
 @dataclass
 class MisCamera:
     aperture: float # aperture area (mm^2)
@@ -245,6 +252,7 @@ class MisCamera:
         self.dark_current = dark_current
 
 
+@dataclass_json
 @dataclass
 class MisInstrument:
     """## Instrument Parameters

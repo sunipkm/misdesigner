@@ -8,7 +8,6 @@ import os
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-import tosholi
 from xarray import DataArray, Dataset
 import matplotlib as mpl
 import matplotlib.widgets as mpl_widgets
@@ -27,33 +26,90 @@ class InstrumentModel(MisGrating):
     This class is used to predict the spectral lines on the image plane for a given set of wavelengths.
     The class is initialized with the instrument optics parameters and the grating parameters.
     """
+    EXT = '.json'
     @staticmethod
     def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> InstrumentModel:
+        """## Load the instrument parameters from a file.
+
+        ### Args:
+            - `configfile (str)`: Path to the configuration file.
+            - `alpha (Optional[Numeric], optional)`: Override the grating angle. Defaults to None.
+            - `gamma_ofst (Optional[Numeric], optional)`: Override the grating tilt. Defaults to None.
+
+        ### Raises:
+            - `FileNotFoundError`: Configuration file not found.
+            - `TypeError`: Invalid file extension.
+
+        ### Returns:
+            - `InstrumentModel`: The InstrumentModel object.
+        """
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
         ext = os.path.splitext(configfile)[-1].lower()
-        if ext == '.toml':
-            with open(configfile, 'rb') as ifile:
-                params = tosholi.load(MisInstrument, ifile)
+        if ext == InstrumentModel.EXT:
+            with open(configfile, 'r') as ifile:
+                data = ifile.read()
+            params: MisInstrument = MisInstrument.from_json(data)
         else:
             raise TypeError(
-                f"Invalid file extension {ext}. Please provide a .toml file.")
-        return InstrumentModel(params.system, params.optics, params.instrument.alpha, gamma_ofst=params.instrument.gamma_ofst, input_wls=params.lines)
+                f"Invalid file extension {ext}. Please provide a {InstrumentModel.EXT} file.")
+        if alpha is not None:
+            params.instrument.alpha = alpha
+        if gamma_ofst is not None:
+            params.instrument.gamma_ofst = gamma_ofst
+        instr = InstrumentModel.from_instrument(params)
+        return instr
 
-    def store(self, path: str, overwrite: bool = False):
-        instr = MisGratingCfg(self.alpha, self.gamma_ofst)
-        params = MisInstrument(self.hmsVersion, self, instr, self.input_wls)
+    def store(self, path: str = None, overwrite: bool = False):
+        """## Store the instrument parameters to a file.
+
+        ### Args:
+            - `path (str, optional)`: Path to the output configuration file. Defaults to None, in which case the file is named after the HMS version.
+            - `overwrite (bool, optional)`: Overwrite any existing file with the same name. Defaults to False.
+
+        ### Raises:
+            - `FileExistsError`: File already exists.
+            - `ValueError`: File extension mismatch.
+        """
+        if path is None:
+            path = f"{self.hmsVersion}.{InstrumentModel.EXT}"
+        params = self.get_instrument()
         dirname = os.path.dirname(path)
         if len(dirname) > 0 and not os.path.exists(dirname):
             os.makedirs(dirname)
         if not overwrite and os.path.exists(path) and os.path.isfile(path):
             raise FileExistsError(f"File {path} already exists.")
-        with open(path, 'wb') as ofile:
-            tosholi.dump(params, ofile)
+        if os.path.splitext(path)[-1].lower() != InstrumentModel.EXT:
+            raise ValueError(f"Invalid file extension for {path}. Please provide a {InstrumentModel.EXT} file.")
+        with open(path, 'w') as ofile:
+            ofile.write(params.to_json())
 
-    def get_instrument_params(self) -> MisInstrument:
+    def get_instrument(self) -> MisInstrument:
+        """## Get the instrument parameters.
+
+        ### Returns:
+            - `MisInstrument`: The instrument parameters.
+        """
         instr = MisGratingCfg(self.alpha, self.gamma_ofst)
-        return MisInstrument(self.hmsVersion, self, instr, self.input_wls)
+        return MisInstrument(self.hmsVersion, self, instr, self.input_wls, self.camera)
+    
+    @staticmethod
+    def from_instrument(instr: MisInstrument) -> InstrumentModel:
+        """## Create an InstrumentModel object from a MisInstrument object.
+
+        ### Args:
+            - `instr (MisInstrument)`: Instrument parameters.
+
+        ### Returns:
+            - `InstrumentModel`: The InstrumentModel object.
+        """
+        return InstrumentModel(
+            instr.system, 
+            instr.optics, 
+            instr.instrument.alpha, 
+            gamma_ofst=instr.instrument.gamma_ofst, 
+            input_wls=instr.lines,
+            camera=instr.camera)
 
     def __init__(
             self, system: str,
@@ -66,7 +122,8 @@ class InstrumentModel(MisGrating):
             alpha_step: Numeric = 0.1,
             n_beta: int = 200,
             n_gamma: int = 100,
-            input_wls: Optional[List[MisFeatures]] = []):
+            input_wls: Optional[List[MisFeatures]] = [],
+            camera: MisCamera = None):
         """## Initialize the LinePredictor object.
 
         ### Args:
@@ -93,6 +150,7 @@ class InstrumentModel(MisGrating):
             self.alpha = alpha
         self.gamma_ofst = gamma_ofst
         self.input_wls = input_wls
+        self.camera = camera
 
         if alpha_min > alpha_max:
             alpha_min, alpha_max = alpha_max, alpha_min
@@ -563,7 +621,7 @@ class InstrumentModel(MisGrating):
         self._annot = annot
 
     def mosaic_map(self,
-                   camera: MisCamera, *,
+                   camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
                    report: bool = True) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
@@ -575,10 +633,19 @@ class InstrumentModel(MisGrating):
 
         ### Returns:
             - `Dataset`: A Dataset object containing the wavelength, resolution, and order for each slit on the mosaic plane.
+
+        ### Raises:
+            - `ValueError`: If camera parameters are not provided.
         """
         def report_print(show: bool, msg: str, end: str = '\n'):
             if show:
                 print(msg, end=end)
+
+        if camera is not None:
+            self.camera = camera
+
+        if self.camera is None:
+            raise ValueError('Camera parameters not provided.')
 
         if alpha is not None:
             self.alpha = alpha
@@ -688,7 +755,7 @@ class InstrumentModel(MisGrating):
 
     def simulate(self,
                  source_wl: np.ndarray, source_i: np.ndarray,
-                 camera: MisCamera, *,
+                 camera: MisCamera = None, *,
                  alpha: Optional[Numeric] = None,
                  report: bool = True,
                  use_c: bool = True) -> Dataset:
@@ -708,6 +775,9 @@ class InstrumentModel(MisGrating):
 
         ### Returns:
             - `Tuple[DataArray, Dataset]`: The first element is the intensity map, in electrons. The second element is a dataset containing the intensity, wavelength map, resolution map, and order map for each slit.
+
+        ### Raises:
+            - `ValueError`: If camera parameters are not provided.
         """
         INV_PLANK_CONST = 1 / 6.62607015e-24  # adjusted for Angstrom
         SPEED_LIGHT = 299792458
@@ -723,6 +793,12 @@ class InstrumentModel(MisGrating):
         argsort = np.argsort(source_wl)
         source_wl = source_wl[argsort]
         source_i = source_i[argsort]
+
+        if camera is not None:
+            self.camera = camera
+        
+        if self.camera is None:
+            raise ValueError('Camera parameters not provided.')
 
         if alpha is not None:
             self.alpha = alpha
@@ -805,6 +881,10 @@ class InstrumentModel(MisGrating):
                     gmax = np.max(grange)
                     prod_s = prod.sel(beta=slice(*beta_range),
                                       gamma=slice(*grange))
+                    
+                    if prod_s.grating_product.values.size == 0:
+                        continue
+
                     props_s = props.sel(beta=slice(*beta_range),
                                         gamma=slice(*grange))
                     intensities_s = output.total_intensity.sel(

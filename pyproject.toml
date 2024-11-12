@@ -18,6 +18,6 @@ dependencies = [
     'astropy>=4.3.0',
     'xarray',
     'netcdf4',
-    'tosholi',
+    'dataclasses_json',
     'scikit-image',
 ]
