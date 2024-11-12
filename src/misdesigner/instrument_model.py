@@ -285,7 +285,6 @@ class InstrumentModel(MisGrating):
             {
                 'grating_product': (['gamma', 'beta'], prod),
                 'd_nx': (['gamma', 'beta'], dprod),
-                'intensity': (['gamma', 'beta'], np.zeros_like(prod)),
             },
             coords={
                 'gamma': gamma_grid,
@@ -296,6 +295,7 @@ class InstrumentModel(MisGrating):
                 'alpha': alpha,
                 'gmin': self._gamma_to_mosaic(self._gamma_to_image(self.gammas[slit][0])),
                 'gmax': self._gamma_to_mosaic(self._gamma_to_image(self.gammas[slit][1])),
+                'scale': abs(np.deg2rad(d_beta) / self.blurs[slit])
             }
         )
 
@@ -876,6 +876,9 @@ class InstrumentModel(MisGrating):
                             SPEED_LIGHT  # convert to photons
                         # apply QE and optical efficiency
                         intensity = intensity * qe * camera.optical_efficiency
+                        # scale with pixel area vs. grid area
+                        intensity *= prod_s.attrs['scale']
+                        # add noise
                         if camera.readout_noise is not None and camera.readout_noise > 0:  # readout noise
                             intensity += np.random.poisson(
                                 0, camera.readout_noise, intensity.shape)
