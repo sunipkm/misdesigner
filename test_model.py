@@ -68,57 +68,8 @@ IMG_SZ = 1024
 dx = length / IMG_SZ
 camera = MisCamera(254.5, 1, dx, 1)
 # %%
-print('Starting image simulation...', end=' ')
-sys.stdout.flush()
-start = perf_counter_ns()
-ret = model.simulate(source_wl, source_int, camera, report=False)
-print('Done.')
-print(f"Time to simulate ({IMG_SZ} x {IMG_SZ}): {(perf_counter_ns() - start) / 1e9} s")
+model.intensity_model(source_wl, source_int, camera)
 # %%
-fig, _, _ = model.intensity_plot(ret.total_intensity, [
-    MisFeatures(6300, plot_styles={'color': 'red'}),
-    MisFeatures(5577, plot_styles={'color': 'green'}),
-    MisFeatures(7774, plot_styles={'color': 'brown'}),
-    MisFeatures(4278, plot_styles={'color': 'violet'}),
-    MisFeatures(6563, plot_styles={'color': 'orange'}),
-    MisFeatures(4861, plot_styles={'color': 'cyan'}),
-    7821, 7841, 6522, 6568
-], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-fig.savefig(f'{SYSTEM}_intensity_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
-print('Saved intensity plot.')
-plt.show()
-# %%
-fig, _ = model.intensity_plot_rgb(ret, [
-    MisFeatures(6300, plot_styles={'color': 'red'}),
-    MisFeatures(5577, plot_styles={'color': 'green'}),
-    MisFeatures(7774, plot_styles={'color': 'brown'}),
-    MisFeatures(4278, plot_styles={'color': 'violet'}),
-    MisFeatures(6563, plot_styles={'color': 'orange'}),
-    MisFeatures(4861, plot_styles={'color': 'cyan'}),
-    7821, 7841, 6522, 6568
-], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-fig.savefig(f'{SYSTEM}_intensity_rgb_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
-plt.close(fig)
-print('Saved RGB intensity plot.')
-# %%
-fig, _ = model.order_map(ret, [
-    MisFeatures(6300, plot_styles={'color': 'red'}),
-    MisFeatures(5577, plot_styles={'color': 'green'}),
-    MisFeatures(7774, plot_styles={'color': 'brown'}),
-    MisFeatures(4278, plot_styles={'color': 'violet'}),
-    MisFeatures(6563, plot_styles={'color': 'orange'}),
-    MisFeatures(4861, plot_styles={'color': 'cyan'}),
-    7821, 7841, 6522, 6568
-], fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-fig.savefig(f'{SYSTEM}_order_map_all_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
-plt.close(fig)
-print('Saved total order map.')
-# %%
-for slit in ret.slit.values:
-    model.order_map_slit(ret, slit, fig_kwargs={'figsize': (6.4, 5.6), 'dpi': 300})
-    plt.savefig(f'{SYSTEM}_order_map_{slit}_{SLIT_WIDTH}.png', dpi=300, bbox_inches='tight')
-    plt.close(fig)
-    print(f'Saved order map for slit {slit}.')
 # %%
 model.store('hmsa_origin.json', True)
 print('Saved instrument model.')

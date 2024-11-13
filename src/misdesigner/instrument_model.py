@@ -6,6 +6,7 @@ from time import perf_counter_ns
 from typing import Dict, List, Literal, Optional, SupportsFloat as Numeric, Tuple
 import os
 import warnings
+from matplotlib.gridspec import GridSpec
 import numpy as np
 import matplotlib.pyplot as plt
 from xarray import DataArray, Dataset
@@ -398,7 +399,7 @@ class InstrumentModel(MisConfig):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
+    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
@@ -409,10 +410,11 @@ class InstrumentModel(MisConfig):
             - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
         """
-        self._plot_lines(True, alpha, wavelengths, mode=mode,
+        fig, ax, slider = self._plot_lines(True, alpha, wavelengths, mode=mode,
                                    default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
+        plt.show()
 
-    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
+    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs, hook=None, setuphook=None) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=NUM_COLORS - 1)
@@ -467,11 +469,13 @@ class InstrumentModel(MisConfig):
             fig_kwargs.pop('constrained_layout')
         fig = plt.figure(constrained_layout=True, **fig_kwargs)
         if sliders:
-            gs = fig.add_gridspec(3, 3, hspace=0.2, wspace=0.1, height_ratios=[
-                0.6, 0.05, 0.05], width_ratios=[1, 0.25, 0.25])
+            gs = fig.add_gridspec(4, 3, hspace=0.2, wspace=0.1, height_ratios=[
+                0.8, 0.05, 0.05, 0.05], width_ratios=[1, 0.25, 0.25])
             ax = fig.add_subplot(gs[0, :])
+            if setuphook is not None:
+                setuphook(gs, fig, ax)
 
-            axalpha = fig.add_subplot(gs[1, :])
+            axalpha = fig.add_subplot(gs[-2, :])
             alpha_slider = mpl_widgets.Slider(
                 ax=axalpha,
                 label=r'$\alpha$ ($^\circ$)',
@@ -481,25 +485,44 @@ class InstrumentModel(MisConfig):
                 valinit=self._alpha,
                 valfmt='%+05.1f',
             )
-            print(self._grating_angle_min, self._grating_angle_max, self._grating_angle_step, self._alpha)
 
-            resetax = fig.add_subplot(gs[2, -1])
-            button = mpl_widgets.Button(resetax, 'Reset', hovercolor='0.975')
+            resetax = fig.add_subplot(gs[-1, -1])
+            reset_btn = mpl_widgets.Button(resetax, 'Reset', hovercolor='0.975')
 
             def reset(event):
                 alpha_slider.reset()
 
-            button.on_clicked(reset)
+            reset_btn.on_clicked(reset)
         else:
             ax = fig.subplots()
 
         self._wls = wls
 
-        self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels)
+        self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
 
         if sliders:
             alpha_slider.on_changed(
-                lambda x: self._update_alpha_plot_lines(x, self._gamma_ofst, fig, ax, mode, labels))
+                lambda x: self._update_alpha_plot_lines(x, self._gamma_ofst, fig, ax, mode, labels, hook))
+            
+            def key_press(event):
+                if event.key == 'left':
+                    self._alpha -= self._grating_angle_step
+                    if self._alpha < self._grating_angle_min:
+                        self._alpha = self._grating_angle_min
+                if event.key == 'right':
+                    self._alpha += self._grating_angle_step
+                    if self._alpha > self._grating_angle_max:
+                        self._alpha = self._grating_angle_max
+                if event.key == 'r':
+                    self._alpha = self._alpha_orig
+                    self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+                alpha_slider.set_val(self._alpha)
+            def key_release(event):
+                if event.key == 'left' or event.key == 'right':
+                    alpha_slider.set_val(self._alpha)
+                    self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+            fig.canvas.mpl_connect('key_press_event', key_press)
+            fig.canvas.mpl_connect('key_release_event', key_release)
 
         if mode == 'Angle':
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
@@ -528,11 +551,11 @@ class InstrumentModel(MisConfig):
                                 va='top', ha='left', zorder=99, color=labelcolor)
         ax.set_aspect('equal')
         if sliders:
-            plt.show()
+            return fig, ax, (alpha_slider, reset_btn)
         else:
-            return fig, ax
+            return fig, ax, None
 
-    def _update_alpha_plot_lines(self, alpha, gamma_ofst, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool):
+    def _update_alpha_plot_lines(self, alpha, gamma_ofst, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool, hook=None):
         self._alpha = alpha
         if gamma_ofst != self._gamma_ofst:
             self.set_gamma(gamma_ofst)
@@ -627,7 +650,8 @@ class InstrumentModel(MisConfig):
                         line, = ax.plot(
                             beta, gamma_ofst, **v.plot_styles, zorder=10)
                         lines.append((slit, line, ord, wl, res))
-
+        if hook is not None:
+            hook(self, fig, ax)
         fig.canvas.mpl_connect("motion_notify_event", hover)
         fig.canvas.draw_idle()
         self._lines = lines
@@ -1027,7 +1051,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
+        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
@@ -1055,7 +1079,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
+        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
@@ -1081,6 +1105,34 @@ class InstrumentModel(MisConfig):
         # fig.subplots_adjust(bottom=0.7)
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
         return fig, ax
+
+    def intensity_model(self, source_wl: np.ndarray, source_i: np.ndarray, camera: MisCamera = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs):
+        if camera is not None:
+            self._camera = camera
+        if self._camera is None:
+            raise ValueError('Camera parameters not provided.')
+        camera = self._camera
+        if source_i.ndim != 1 or source_wl.ndim != 1:
+            raise ValueError(
+                'Source wavelength and intensity must be 1D arrays.')
+        if source_i.size != source_wl.size:
+            raise ValueError(
+                'Source wavelength and intensity arrays must be of the same size.')
+        cax = []
+        def setuphook(gs: GridSpec, fig: plt.Figure, ax: plt.Axes):
+            cax.append(fig.add_subplot(gs[1, :]))
+
+        def hook(this: InstrumentModel, fig: plt.Figure, ax: plt.Axes):
+            intensity = this.simulate(source_wl, source_i, method='Nearest', report=False)
+            im = ax.imshow(intensity.total_intensity.values, origin='lower', extent=[
+                intensity.beta.values[0], intensity.beta.values[-1], intensity.gamma.values[0], intensity.gamma.values[-1]], cmap=cmap)
+            cbar = fig.colorbar(im, cax=cax[0], orientation='horizontal')
+            cbar.set_label('Intensity (e$^-$)')
+            cbar.formatter.set_useMathText(True)
+            
+        fig, ax, slider = self._plot_lines(True, self._alpha, None, mode='Mosaic',
+                                   default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs, hook=hook, setuphook=setuphook)
+        plt.show()
 
     def order_map(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the different orders illuminating different sections of the mosaic for all slits.
@@ -1120,7 +1172,7 @@ class InstrumentModel(MisConfig):
             return x[-1]
 
         output.sort(key=sortby, reverse=True)
-        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
+        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
@@ -1186,7 +1238,7 @@ class InstrumentModel(MisConfig):
         output = list(filter(filterby, output))
         output.sort(key=sortby, reverse=True)
 
-        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
+        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
