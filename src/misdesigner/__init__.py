@@ -7,7 +7,7 @@ __version__ = metadata.version('misdesigner')
 
 __all__ = ['InstrumentModel',
            'PlotMode',
-           'MisGrating',
+           'MisConfig',
            'MisMosaic',
            'MisMosaicFilter',
            'MisSlit',

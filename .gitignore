@@ -9,3 +9,7 @@
 **/*egg-info
 **/*.pkl
 **/*.ipynb_*
+*.json
+*.jp*g
+*.png
+!config/instrument_schema.json

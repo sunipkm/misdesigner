@@ -12,7 +12,7 @@ from xarray import DataArray, Dataset
 import matplotlib as mpl
 import matplotlib.widgets as mpl_widgets
 
-from .instrument_params import MisCamera, MisGrating, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
+from .instrument_params import MisCamera, MisConfig, MisFeatures, MisMosaic, MisMosaicFilter, MisSlit, MisGratingCfg, MisInstrument
 from .utils import common_range, sign_ceil, sign_floor
 
 from .multi_integrate import multi_integrate, unsort, wavelength_to_rgb
@@ -21,7 +21,7 @@ from .multi_integrate import multi_integrate, unsort, wavelength_to_rgb
 PlotMode = Literal['Angle', 'Mosaic']
 
 
-class InstrumentModel(MisGrating):
+class InstrumentModel(MisConfig):
     """## The core of the MISDesigner package.
     This class is used to predict the spectral lines on the image plane for a given set of wavelengths.
     The class is initialized with the instrument optics parameters and the grating parameters.
@@ -54,9 +54,9 @@ class InstrumentModel(MisGrating):
             raise TypeError(
                 f"Invalid file extension {ext}. Please provide a {InstrumentModel.EXT} file.")
         if alpha is not None:
-            params.instrument.alpha = alpha
+            params.alignment.alpha = alpha
         if gamma_ofst is not None:
-            params.instrument.gamma_ofst = gamma_ofst
+            params.alignment.gamma_ofst = gamma_ofst
         instr = InstrumentModel.from_instrument(params)
         return instr
 
@@ -106,14 +106,14 @@ class InstrumentModel(MisGrating):
         return InstrumentModel(
             instr.system, 
             instr.optics, 
-            instr.instrument.alpha, 
-            gamma_ofst=instr.instrument.gamma_ofst, 
+            instr.alignment.alpha, 
+            gamma_ofst=instr.alignment.gamma_ofst, 
             input_wls=instr.lines,
             camera=instr.camera)
 
     def __init__(
             self, system: str,
-            optics: MisGrating,
+            optics: MisConfig,
             alpha: Optional[Numeric] = None,
             *,
             gamma_ofst: Numeric = 0,
@@ -647,6 +647,8 @@ class InstrumentModel(MisGrating):
         if self.camera is None:
             raise ValueError('Camera parameters not provided.')
 
+        camera = self.camera
+
         if alpha is not None:
             self.alpha = alpha
 
@@ -669,6 +671,8 @@ class InstrumentModel(MisGrating):
                 'wavelength': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
                 'resolution': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
                 'order': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), np.nan, dtype=float)),
+                'gmin': (['slit'], [prod.attrs['gmin'] for prod in prods.values()], {'units': 'deg', 'description': 'Minimum gamma in instrument coordinates'}),
+                'gmax': (['slit'], [prod.attrs['gmax'] for prod in prods.values()], {'units': 'deg', 'description': 'Maximum gamma in instrument coordinates'}),
             },
             coords={
                 'gamma': gamma_grid,
@@ -677,8 +681,6 @@ class InstrumentModel(MisGrating):
             },
             attrs={
                 'alpha': self.alpha,
-                'gmin': [prod.attrs['gmin'] for prod in prods.values()],
-                'gmax': [prod.attrs['gmin'] for prod in prods.values()],
                 'system': self.hmsVersion,
             }
         )
@@ -719,6 +721,8 @@ class InstrumentModel(MisGrating):
                     gmax = np.max(grange)
                     prod_s = prod.sel(beta=slice(*beta_range),
                                       gamma=slice(*grange))
+                    if prod_s.grating_product.values.size == 0:
+                        continue
                     props_s = props.sel(beta=slice(*beta_range),
                                         gamma=slice(*grange))
 
@@ -799,6 +803,8 @@ class InstrumentModel(MisGrating):
         
         if self.camera is None:
             raise ValueError('Camera parameters not provided.')
+        
+        camera = self.camera
 
         if alpha is not None:
             self.alpha = alpha
@@ -828,6 +834,8 @@ class InstrumentModel(MisGrating):
                 'wavelength': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
                 'resolution': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
                 'order': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(valid_keys)), np.nan, dtype=float)),
+                'gmin': (['slit'], [prods[k].attrs['gmin'] for k in valid_keys], {'units': 'deg', 'description': 'Minimum gamma angle in instrument coordinates'}),
+                'gmax': (['slit'], [prods[k].attrs['gmax'] for k in valid_keys], {'units': 'deg', 'description': 'Maximum gamma angle in instrument coordinates'}),
             },
             coords={
                 'gamma': gamma_grid,
@@ -968,9 +976,11 @@ class InstrumentModel(MisGrating):
                         # intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe)
             report_print(report, f'Window {window.name} processed.')
         # return intensities
-        output.total_intensity.values.clip(0, camera.well_depth, out=output.total_intensity.values)
-        output.intensity.values.clip(
-            0, camera.well_depth, out=output.intensity.values)
+        if camera.well_depth is not None:
+            camera.well_depth = abs(camera.well_depth)
+            output.total_intensity.values.clip(0, camera.well_depth, out=output.total_intensity.values)
+            output.intensity.values.clip(
+                0, camera.well_depth, out=output.intensity.values)
         return output
 
     def intensity_plot(self, intensities: DataArray, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, cmap: str = 'bone', **fig_kwargs) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:

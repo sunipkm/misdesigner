@@ -1,0 +1,221 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "title": "MISConfig",
+    "description": "Multi-Slit Imaging Spectrograph (MIS) configuration file",
+    "type": "object",
+    "properties": {
+        "system": {
+            "type": "string",
+            "description": "Name of the instrument"
+        },
+        "optics": {
+            "type": "object",
+            "description": "Optical configuration",
+            "properties": {
+                "fl_collimator": {
+                    "type": "number",
+                    "description": "Focal length of the collimator (mm)"
+                },
+                "fl_mosaic": {
+                    "type": "number",
+                    "description": "Focal length of the mosaic (mm)"
+                },
+                "sigma": {
+                    "type": "number",
+                    "description": "Grating groove density (lines/mm)"
+                },
+                "slits": {
+                    "type": "object",
+                    "description": "Slits and their configurations. Slit coordinates are defined in the instrument coordinate system. The instrument coordinate system is set up such that the Z axis is the optical axis, the X axis is the dispersion axis, and the Y axis is the cross-dispersion axis. The grating grooves are parallel to the Y axis. Light travels in the positive direction, from the slit to the grating. Angles are measured in degrees, with positive angles in the counter-clockwise direction. The instrument designer assumes that the slits are on the XY plane. On the X axis, positive values are to the left of the instrument, and negative values are to the right of the instrument. On the Y axis, positive values are above the instrument, and negative values are below the instrument.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "x": {
+                                "type": "number",
+                                "description": "X-coordinate of the slit center (mm)"
+                            },
+                            "y": {
+                                "type": "number",
+                                "description": "Y-coordinate of the slit center (mm)"
+                            },
+                            "width": {
+                                "type": "number",
+                                "description": "Width of the slit (mm)"
+                            },
+                            "height": {
+                                "type": "number",
+                                "description": "Height of the slit (mm)"
+                            },
+                            "ranges": {
+                                "type": ["array", "null"],
+                                "description": "Wavelength ranges for the slit",
+                                "items": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number"
+                                    }
+                                }
+                            }
+                        },
+                        "required": ["x", "y", "width", "height"]
+                    }
+                },
+                "mosaic": {
+                    "type": ["object", "null"],
+                    "description": "Mosaic configuration. The mosaic coordinate system is set up such that the Z axis is the optical axis, the X axis is the dispersion axis, and the Y axis is the cross-dispersion axis. The grating grooves are parallel to the Y axis. Light travels in the positive direction, from the slit to the grating. Angles are measured in degrees, with positive angles in the counter-clockwise direction. The instrument designer assumes that the mosaic plane is perpendicular to the line from the origin to the mosaic center.",
+                    "properties": {
+                        "x": {
+                            "type": "number",
+                            "description": "X-coordinate of the mosaic center (mm) in the instrument coordinate system"
+                        },
+                        "y": {
+                            "type": "number",
+                            "description": "Y-coordinate of the mosaic center (mm) in the instrument coordinate system"
+                        },
+                        "width": {
+                            "type": "number",
+                            "description": "Width of the mosaic (mm)"
+                        },
+                        "height": {
+                            "type": "number",
+                            "description": "Height of the mosaic (mm)"
+                        },
+                        "windows": {
+                            "type": ["array", "null"],
+                            "description": "Wavelength windows for the mosaic, defined in the mosaic coordinate system. The origin of the mosaic coordinate system is at the bottom left corner of the mosaic, i.e. the mosaic filter at x, y with width and height is on the mosaic the rectangle (x, y), (x + width, y), (x + width, y + height), and (x, y + height).",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "x": {
+                                        "type": "number",
+                                        "description": "X-coordinate of the window center (mm)"
+                                    },
+                                    "y": {
+                                        "type": "number",
+                                        "description": "Y-coordinate of the window center (mm)"
+                                    },
+                                    "width": {
+                                        "type": "number",
+                                        "description": "Width of the window (mm)"
+                                    },
+                                    "height": {
+                                        "type": "number",
+                                        "description": "Height of the window (mm)"
+                                    },
+                                    "name": {
+                                        "type": ["string", "null"],
+                                        "description": "Name of the window"
+                                    },
+                                    "ranges": {
+                                        "type": "array",
+                                        "description": "Wavelength ranges for the window, in Angstroms",
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number"
+                                            }
+                                        }
+                                    }
+                                },
+                                "required": ["x", "y", "width", "height", "ranges"]
+                            }
+                        }
+                    },
+                    "required": ["x", "y", "width", "height"]
+                }
+            },
+            "required": ["fl_collimator", "fl_mosaic", "sigma", "slits", "mosaic"]
+        },
+        "alignment": {
+            "type": ["object", "null"],
+            "description": "Grating alignment. The grating alignment angles are defined in the instrument coordinate system. The instrument coordinate system is set up such that the Z axis is the optical axis, the X axis is the dispersion axis, and the Y axis is the cross-dispersion axis. The grating grooves are parallel to the Y axis. Light travels in the positive direction, from the slit to the grating. Angles are measured in degrees, with positive angles in the counter-clockwise direction.",
+            "properties": {
+                "alpha": {
+                    "type": "number",
+                    "description": "Rotation angle of the grating in the instrument coordinate system (degrees), along the axis parallel to the grooves."
+                },
+                "gamma_ofst": {
+                    "type": "number",
+                    "description": "Offset angle of the grating in the instrument coordinate system (degrees), along the axis perpendicular to the grooves."
+                }
+            },
+            "required": ["alpha", "gamma_ofst"]
+        },
+        "lines": {
+            "type": ["array", "null"],
+            "description": "Wavelength calibration lines",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "wavelength": {
+                        "type": "number",
+                        "description": "Wavelength of the line (Angstroms)"
+                    },
+                    "slit_key": {
+                        "type": ["string", "null"],
+                        "description": "Key of the slit that the line is associated with"
+                    },
+                    "plot_styles": {
+                        "type": ["object", "null"],
+                        "description": "Plot styles for the line used by matplotlib"
+                    },
+                    "name": {
+                        "type": ["string", "null"],
+                        "description": "Name of the line"
+                    }
+                },
+                "required": ["wavelength"]
+            }
+        },
+        "camera": {
+            "type": ["object", "null"],
+            "description": "Camera configuration",
+            "properties": {
+                "aperture": {
+                    "type": "number",
+                    "description": "Aperture area of the instrument (mm^2)"
+                },
+                "scale": {
+                    "type": "number",
+                    "description": "Projected scale of a detector pixel on the mosaic (mm/pixel)"
+                },
+                "pixel_size": {
+                    "type": "number",
+                    "description": "Size of a detector pixel (microns)"
+                },
+                "exposure": {
+                    "type": "number",
+                    "description": "Exposure time of the detector (seconds)"
+                },
+                "optical_efficiency": {
+                    "type": ["number", "null"],
+                    "description": "Optical efficiency of the instrument"
+                },
+                "well_depth": {
+                    "type": ["number", "null"],
+                    "description": "Well depth of the detector (electrons)"
+                },
+                "qe_curve": {
+                    "type": ["array", "null"],
+                    "description": "Quantum efficiency curve of the detector. This is a 2-element array of arrays, where the first array is the wavelength in Angstroms and the second array is the quantum efficiency.",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    }
+                },
+                "readout_noise": {
+                    "type": ["number", "null"],
+                    "description": "Readout noise of the detector (electrons)"
+                },
+                "dark_current": {
+                    "type": ["number", "null"],
+                    "description": "Dark current of the detector (electrons/second)"
+                }
+            },
+            "required": ["aperture", "scale", "pixel_size", "exposure"]
+        }
+    },
+    "required": ["system", "optics"]
+}

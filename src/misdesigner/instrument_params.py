@@ -8,7 +8,7 @@ import numpy as np
 
 @dataclass_json
 @dataclass
-class MisGrating:
+class MisConfig:
     """## Instrument Optics Parameters
     """
     fl_collimator: float  # collimator focal length (mm)
@@ -32,15 +32,13 @@ class MisMosaic:
     y: float
     width: float
     height: float
-    windows: List[MisMosaicFilter]
+    windows: Optional[List[MisMosaicFilter]] = None
 
     def __init__(self, x: float, y: float, width: float, height: float, windows: Optional[List[MisMosaicFilter]] = None):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        if windows is None:
-            windows = []
         self.windows = windows
 
     def min_lambda(self) -> int:
@@ -81,7 +79,7 @@ class MisMosaicFilter:
     ranges: List[Tuple[float, float]]
     name: Optional[str] = None
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]] = [], name: Optional[str] = None):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]], name: Optional[str] = None):
         self.x = x
         self.y = y
         self.width = width
@@ -148,22 +146,25 @@ class MisSlit:
     y: float
     width: float
     height: float
-    ranges: List[Tuple[float, float]]
+    ranges: Optional[List[Tuple[float, float]]] = None
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]] = []):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]] = None):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        frange = []
-        for range in ranges:
-            if len(range) != 2:
-                continue
-            if range[0] > range[1]:
-                range = (range[1], range[0])
-            else:
-                range = (range[0], range[1])
-            frange.append(range)
+        if ranges is not None:
+            frange = []
+            for range in ranges:
+                if len(range) != 2:
+                    continue
+                if range[0] > range[1]:
+                    range = (range[1], range[0])
+                else:
+                    range = (range[0], range[1])
+                frange.append(range)
+        else:
+            frange = None
         self.ranges = frange
 
     def min_lambda(self) -> int:
@@ -196,21 +197,9 @@ class MisFeatures:
     """
     wavelength: int  # wavelength (Angstrom)
     # key of slit from which light ends up to this panel
-    slit_key: str
-    plot_styles: Dict[str, Any]  # color
-    name: str
-
-    def __init__(self, wavelength: int, slit_key: Optional[str] = None, plot_styles: Optional[dict] = None, name: Optional[str] = None):
-        self.wavelength = wavelength
-        if slit_key is None:
-            slit_key = ''
-        self.slit_key = slit_key
-        if plot_styles is None:
-            plot_styles = {}
-        self.plot_styles = plot_styles
-        if name is None:
-            name = ''
-        self.name = name
+    slit_key: Optional[str] = None
+    plot_styles: Optional[Dict[str, Any]] = None  # color
+    name: Optional[str] = None
 
 
 @dataclass_json
@@ -228,20 +217,23 @@ class MisCamera:
     aperture: float # aperture area (mm^2)
     scale: float  # pixel scale (mm/pixel)
     pixel_size: float  # pixel size (mm)
-    well_depth: float  # well depth (e-)
     exposure: float  # exposure time (s)
     optical_efficiency: float = 1  # optical efficiency
+    well_depth: Optional[float] = None # well depth (e-)
     # quantum efficiency curve (wavelength, qe)
-    qe_curve: Optional[List[List[float], List[float]]] = None
+    qe_curve: Optional[Tuple[List[float], List[float]]] = None
     readout_noise: Optional[float] = None  # readout noise (e-) per pixel
     dark_current: Optional[float] = None  # dark current (e-/s/pixel)
 
-    def __init__(self, aperture: float, scale: float, pixel_size: float, well_depth: float, exposure: float, qe_curve: Optional[List[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
+    def __init__(self, aperture: float, scale: float, pixel_size: float, exposure: float, optical_efficiency: float  = 1, well_depth: Optional[float] = None, qe_curve: Optional[Tuple[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
         self.aperture = aperture
         self.scale = scale
         self.pixel_size = pixel_size
+        if well_depth is not None and well_depth < 0:
+            raise ValueError('Well depth should be positive.')
         self.well_depth = well_depth
         self.exposure = exposure
+        self.optical_efficiency = optical_efficiency
         if qe_curve is not None:
             if len(qe_curve) != 2:
                 raise ValueError('Quantum efficiency curve should be a list of two lists.')
@@ -258,9 +250,9 @@ class MisInstrument:
     """## Instrument Parameters
     """
     system: str  # Instrument name
-    optics: MisGrating  # Instrument Optics Parameters
+    optics: MisConfig  # Instrument Optics Parameters
     # Instrument Adjustment Parameters
-    instrument: Optional[MisGratingCfg] = None
+    alignment: Optional[MisGratingCfg] = None
     # Instrument interest wavelength parameters
     lines: List[MisFeatures] = None
     camera: Optional[MisCamera] = None
