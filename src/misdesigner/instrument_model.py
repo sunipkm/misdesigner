@@ -19,6 +19,7 @@ from .multi_integrate import multi_integrate, unsort, wavelength_to_rgb
 # %%
 
 PlotMode = Literal['Angle', 'Mosaic']
+IntensityMethod = Literal['Integrate', 'Nearest']
 
 
 class InstrumentModel(MisConfig):
@@ -635,7 +636,8 @@ class InstrumentModel(MisConfig):
     def mosaic_map(self,
                    camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
-                   report: bool = True) -> Dataset:
+                   report: bool = True,
+                   method: IntensityMethod = 'Integrate') -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
         ### Args:
@@ -693,7 +695,8 @@ class InstrumentModel(MisConfig):
             },
             attrs={
                 'alpha': self._alpha,
-                'system': self.hmsVersion,
+                'system': self.hmsVersion,                
+                'config': self.get_instrument().to_dict()
             }
         )
 
@@ -773,6 +776,7 @@ class InstrumentModel(MisConfig):
                  source_wl: np.ndarray, source_i: np.ndarray,
                  camera: MisCamera = None, *,
                  alpha: Optional[Numeric] = None,
+                 method: IntensityMethod = 'Integrate',
                  report: bool = True,
                  use_c: bool = True) -> Dataset:
         """## Simulate the instrument observation of a source spectrum.
@@ -782,8 +786,13 @@ class InstrumentModel(MisConfig):
             - `source_i (np.ndarray)`: Source spectrum intensities in W/m^2/Anstrom.
             - `camera (MisCamera)`: Throughput and detector specifications. See `MisCamera`.
             - `alpha (Optional[Numeric], optional)`: Grating angle in degrees. Defaults to None.
+            - `method (SimulateMethod, optional)`: Simulation method. Defaults to 'Integrate'.
             - `report (bool, optional)`: Report operations during calculations. Defaults to True.
             - `use_c (bool, optional)`: Use the faster C library for calculations. Defaults to True.
+
+        ### Note:
+            - Method `Integrate` integrates the source spectrum over the spectral range seen by a given "pixel" on the mosaic plane.
+            - Method `Nearest` assigns the wavelength of the nearest pixel to the source spectrum, and multiplies it by the wavelength range observed by the pixel.
 
         ### Note:
         - The C library is faster for large datasets, but may not be available on all platforms.
@@ -856,8 +865,9 @@ class InstrumentModel(MisConfig):
             },
             attrs={
                 'alpha': self._alpha,
-                'gmin': [prods[k].attrs['gmin'] for k in valid_keys],
-                'gmax': [prods[k].attrs['gmax'] for k in valid_keys],
+                'method': method,
+                'system': self.hmsVersion,
+                'config': self.get_instrument().to_dict()
             }
         )
 
@@ -944,28 +954,37 @@ class InstrumentModel(MisConfig):
                         else:
                             qe = np.interp(
                                 lam[rvalid], camera.qe_curve[0], camera.qe_curve[1])
-                        lower = lam[rvalid] - dlam[rvalid]
-                        upper = lam[rvalid] + dlam[rvalid]
-                        llower: np.ndarray = np.minimum(lower, upper)
-                        uupper: np.ndarray = np.maximum(lower, upper)
-                        if use_c:
-                            sortargs = np.argsort(llower)
-                            llower.sort()
-                            uupper.sort()
-                            start = perf_counter_ns()
-                            # intensity = np.vectorize(
-                            #     calc_intensity)(llower, uupper)
-                            intensity = multi_integrate(
-                                source_wl, source_i, llower, uupper)
-                            intensity = unsort(intensity, sortargs)
-                            end = perf_counter_ns()
+                        # calculate intensity
+                        if method == 'Integrate':
+                            lower = lam[rvalid] - dlam[rvalid]
+                            upper = lam[rvalid] + dlam[rvalid]
+                            llower: np.ndarray = np.minimum(lower, upper)
+                            uupper: np.ndarray = np.maximum(lower, upper)
+                            if use_c:
+                                sortargs = np.argsort(llower)
+                                llower.sort()
+                                uupper.sort()
+                                start = perf_counter_ns()
+                                # intensity = np.vectorize(
+                                #     calc_intensity)(llower, uupper)
+                                intensity = multi_integrate(
+                                    source_wl, source_i, llower, uupper)
+                                intensity = unsort(intensity, sortargs)
+                                end = perf_counter_ns()
+                            else:
+                                start = perf_counter_ns()
+                                intensity = np.vectorize(
+                                    calc_intensity)(llower, uupper)
+                                end = perf_counter_ns()
+                            report_print(report,
+                                        f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
+                        elif method == 'Nearest':
+                            intensity = np.interp(lam[rvalid], source_wl, source_i) * \
+                                        (dlam[rvalid] * 2)
+                            report_print(report, 'Done.')
                         else:
-                            start = perf_counter_ns()
-                            intensity = np.vectorize(
-                                calc_intensity)(llower, uupper)
-                            end = perf_counter_ns()
-                        report_print(report,
-                                     f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
+                            raise ValueError(
+                                f'Invalid method: {method}. Expected Integrate or Nearest.')
                         # intensity[rignr] = 0
                         # intensity = intensity.reshape(lam.shape)
                         # amount of energy in Joules

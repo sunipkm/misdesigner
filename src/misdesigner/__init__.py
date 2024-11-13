@@ -1,4 +1,4 @@
-from .instrument_model import InstrumentModel, PlotMode
+from .instrument_model import InstrumentModel, PlotMode, IntensityMethod
 # from .pixel_to_wl_map import MapPixel2Wl
 from .instrument_params import *
 import importlib.metadata as metadata
@@ -7,6 +7,7 @@ __version__ = metadata.version('misdesigner')
 
 __all__ = ['InstrumentModel',
            'PlotMode',
+           'IntensityMethod',
            'MisConfig',
            'MisMosaic',
            'MisMosaicFilter',
