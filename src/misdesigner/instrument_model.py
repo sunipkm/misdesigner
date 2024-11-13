@@ -90,8 +90,8 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `MisInstrument`: The instrument parameters.
         """
-        instr = MisGratingCfg(self.alpha, self.gamma_ofst)
-        return MisInstrument(self.hmsVersion, self, instr, self.input_wls, self.camera)
+        instr = MisGratingCfg(self._alpha, self._gamma_ofst)
+        return MisInstrument(self.hmsVersion, self, instr, self._input_wls, self._camera)
     
     @staticmethod
     def from_instrument(instr: MisInstrument) -> InstrumentModel:
@@ -147,41 +147,50 @@ class InstrumentModel(MisConfig):
         )
 
         if alpha is not None:
-            self.alpha = alpha
-        self.gamma_ofst = gamma_ofst
-        self.input_wls = input_wls
-        self.camera = camera
+            self._alpha = alpha
+        self._gamma_ofst = gamma_ofst
+        self._input_wls = input_wls
+        self._camera = camera
 
         if alpha_min > alpha_max:
             alpha_min, alpha_max = alpha_max, alpha_min
-        self.grating_angle_min = alpha_min
-        self.grating_angle_max = alpha_max
-        self.grating_angle_step = abs(alpha_step)
+        self._grating_angle_min = alpha_min
+        self._grating_angle_max = alpha_max
+        self._grating_angle_step = abs(alpha_step)
 
-        self.n_beta = n_beta
-        self.n_gamma = n_gamma
+        self._n_beta = n_beta
+        self._n_gamma = n_gamma
 
-        self.den = 1e7/self.sigma  # groove distance in Angstrom
+        self._den = 1e7/self.sigma  # groove distance in Angstrom
 
         self.hmsVersion = system.upper()
+        self.set_gamma(self._gamma_ofst)
+        
+    def set_gamma(self, gamma_ofst: Numeric):
+        """## Update the grating tilt.
+
+        ### Args:
+            - `gamma_ofst (Numeric)`: The grating tilt, perpendicular to the grooves, in degrees.
+        """
+        self._gamma_ofst = gamma_ofst
         self.gammas = self._relative_gammas(
-            self.gamma_ofst)  # grating coordinate
+            self._gamma_ofst)  # grating coordinate
         dbeta = np.rad2deg(np.arctan(self.mosaic.width/2/self.fl_mosaic))
         betaofst = np.rad2deg(np.arctan(self.mosaic.x/self.fl_mosaic))
-        self.beta_min = betaofst - dbeta
-        self.beta_max = betaofst + dbeta
-        if self.beta_min > self.beta_max:
-            self.beta_min, self.beta_max = self.beta_max, self.beta_min
+        self._beta_min = betaofst - dbeta
+        self._beta_max = betaofst + dbeta
+        if self._beta_min > self._beta_max:
+            self._beta_min, self._beta_max = self._beta_max, self._beta_min
         dgamma = np.rad2deg(np.arctan(self.mosaic.height/2/self.fl_mosaic))
         mgamma_ofst = np.rad2deg(np.arctan(self.mosaic.y/self.fl_mosaic))
-        self.gamma_min = mgamma_ofst - dgamma
-        self.gamma_max = mgamma_ofst + dgamma
-        if self.gamma_min > self.gamma_max:
-            self.gamma_min, self.gamma_max = self.gamma_max, self.gamma_min
-        self.mosaic_bottom_left = (self._image_deg_to_mm(
+        self._gamma_min = mgamma_ofst - dgamma
+        self._gamma_max = mgamma_ofst + dgamma
+        if self._gamma_min > self._gamma_max:
+            self._gamma_min, self._gamma_max = self._gamma_max, self._gamma_min
+        self._mosaic_bottom_left = (self._image_deg_to_mm(
             # in instrument coord
-            self.beta_max), self._image_deg_to_mm(self.gamma_min))
-        self.blurs = self._slit_blurs()
+            self._beta_max), self._image_deg_to_mm(self._gamma_min))
+        self._blurs = self._slit_blurs()
 
     def _image_deg_to_mm(self, deg):
         return np.tan(np.deg2rad(deg))*self.fl_mosaic
@@ -236,7 +245,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `Numeric | np.ndarray`: Diffracted angle β.
         """
-        const = m*wl/(self.den*np.sin(np.deg2rad(gamma)))
+        const = m*wl/(self._den*np.sin(np.deg2rad(gamma)))
         sinb = const - np.sin(np.deg2rad(alpha))
         sinb[np.where((sinb > 1) | (sinb < -1))] = np.nan
         beta = np.arcsin(sinb)
@@ -252,11 +261,11 @@ class InstrumentModel(MisConfig):
 
     def _gamma_to_mosaic(self, gamma):
         """Converts gamma in image coordinate (degrees) to mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner)."""
-        return self._image_deg_to_mm(gamma) - self.mosaic_bottom_left[1]
+        return self._image_deg_to_mm(gamma) - self._mosaic_bottom_left[1]
 
     def _gamma_from_mosaic(self, gamma):
         """Converts gamma in mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner) to image coordinate (degrees)."""
-        return self._image_mm_to_deg(gamma + self.mosaic_bottom_left[1])
+        return self._image_mm_to_deg(gamma + self._mosaic_bottom_left[1])
 
     def _gamma_from_image(self, gamma):
         vlen = np.tan(np.deg2rad(gamma))*self.fl_mosaic
@@ -265,11 +274,11 @@ class InstrumentModel(MisConfig):
 
     def _beta_from_mosaic(self, beta):
         """Converts beta in mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner) to image coordinate (degrees)."""
-        return self._image_mm_to_deg(beta + self.mosaic_bottom_left[0])
+        return self._image_mm_to_deg(beta + self._mosaic_bottom_left[0])
 
     def _beta_to_mosaic(self, beta):
         """Converts beta in image coordinate (degrees) to mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner)."""
-        return self._image_deg_to_mm(beta) - self.mosaic_bottom_left[0]
+        return self._image_deg_to_mm(beta) - self._mosaic_bottom_left[0]
 
     def _beta_to_image(self, beta, grating_angle):
         return beta + grating_angle
@@ -284,7 +293,7 @@ class InstrumentModel(MisConfig):
                 f'Slit {slit} is not illuminated at grating angle {grating_angle} deg.')
             return None
         gmin, gmax = self.gammas[slit]
-        minb, maxb = self.beta_min, self.beta_max
+        minb, maxb = self._beta_min, self._beta_max
         gamma = np.linspace(gmin, gmax, int(n_gamma))  # grating coordinate
         beta = np.linspace(minb, maxb, int(n_beta))  # instrument coordinate
         beta_ = self._beta_to_grating(
@@ -297,8 +306,8 @@ class InstrumentModel(MisConfig):
         alph = np.sin(np.deg2rad(alpha))
         gam = np.sin(np.deg2rad(gg))
         bet = np.sin(np.deg2rad(bb))
-        prod = (bet + alph) * gam * self.den
-        dnx = self.den * gam * np.cos(np.deg2rad(bb)) * np.deg2rad(d_beta)
+        prod = (bet + alph) * gam * self._den
+        dnx = self._den * gam * np.cos(np.deg2rad(bb)) * np.deg2rad(d_beta)
         return Dataset(
             {
                 'grating_product': (['gamma', 'beta'], prod),
@@ -332,10 +341,10 @@ class InstrumentModel(MisConfig):
         bb, gg = np.meshgrid(beta, gamma)
         gmin, gmax = self.gammas[slit]
         alph = np.sin(np.deg2rad(alpha))
-        gg = np.sin(np.deg2rad(gg)) * self.den
+        gg = np.sin(np.deg2rad(gg)) * self._den
         bb = np.deg2rad(bb)
         prod = (np.sin(bb) + alph) * gg
-        dprod = self.den * np.cos(bb) * self.blurs[slit]
+        dprod = self._den * np.cos(bb) * self._blurs[slit]
         loc = np.where((gg > gmin) & (gg < gmax))
         prod[loc] = np.nan
         dprod[loc] = np.nan
@@ -353,7 +362,7 @@ class InstrumentModel(MisConfig):
                 'alpha': alpha,
                 'gmin': self._gamma_to_mosaic(self._gamma_to_image(self.gammas[slit][0])),
                 'gmax': self._gamma_to_mosaic(self._gamma_to_image(self.gammas[slit][1])),
-                'scale': abs(np.deg2rad(d_beta) / self.blurs[slit])
+                'scale': abs(np.deg2rad(d_beta) / self._blurs[slit])
             }
         )
 
@@ -377,9 +386,9 @@ class InstrumentModel(MisConfig):
                 prod.attrs['alpha'],
                 prod.gamma_arr.values[:, 0],
                 ord, wavelength)  # grating coordinate
-            res = ord*wavelength/(self.den*np.cos(np.deg2rad(beta))
+            res = ord*wavelength/(self._den*np.cos(np.deg2rad(beta))
                                   # mλ/(d*cos(β))
-                                  * self.blurs[prod.attrs['slit']])
+                                  * self._blurs[prod.attrs['slit']])
             # res = np.sin(np.deg2rad(prod.gamma_arr.values[:, 0])) \
             #     * (np.sin(np.deg2rad(beta)) + np.sin(np.deg2rad(prod.attrs['alpha']))) \
             #     / (self.blurs[prod.attrs['slit']]*np.cos(np.deg2rad(beta))) # sin(γ)*(sin(β)+sin(α))/(B*cos(β))
@@ -409,20 +418,20 @@ class InstrumentModel(MisConfig):
         colors = [cmap(norm(i)) for i in range(NUM_COLORS)]
 
         if alpha is not None:
-            self.alpha = alpha
-        elif not hasattr(self, 'alpha'):
-            self.alpha = 0
+            self._alpha = alpha
+        elif not hasattr(self, '_alpha'):
+            self._alpha = 0
 
-        self.alpha_orig = self.alpha
+        self._alpha_orig = self._alpha
 
         if wavelengths is not None:
-            self.input_wls = wavelengths.copy()
+            self._input_wls = wavelengths.copy()
             for k, v in enumerate(wavelengths):
                 if isinstance(v, int):
-                    self.input_wls[k] = MisFeatures(v)
+                    self._input_wls[k] = MisFeatures(v)
             wls = wavelengths
         else:
-            wls = self.input_wls.copy()
+            wls = self._input_wls.copy()
         for k, v in enumerate(wls):
             if isinstance(v, int):
                 style = default_style.copy()
@@ -465,12 +474,13 @@ class InstrumentModel(MisConfig):
             alpha_slider = mpl_widgets.Slider(
                 ax=axalpha,
                 label=r'$\alpha$ ($^\circ$)',
-                valmin=self.grating_angle_min,
-                valmax=self.grating_angle_max,
-                valstep=self.grating_angle_step,
-                valinit=self.alpha,
+                valmin=self._grating_angle_min,
+                valmax=self._grating_angle_max,
+                valstep=self._grating_angle_step,
+                valinit=self._alpha,
                 valfmt='%+05.1f',
             )
+            print(self._grating_angle_min, self._grating_angle_max, self._grating_angle_step, self._alpha)
 
             resetax = fig.add_subplot(gs[2, -1])
             button = mpl_widgets.Button(resetax, 'Reset', hovercolor='0.975')
@@ -484,17 +494,17 @@ class InstrumentModel(MisConfig):
 
         self._wls = wls
 
-        self._update_alpha_plot_lines(self.alpha, fig, ax, mode, labels)
+        self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels)
 
         if sliders:
             alpha_slider.on_changed(
-                lambda x: self._update_alpha_plot_lines(x, fig, ax, mode, labels))
+                lambda x: self._update_alpha_plot_lines(x, self._gamma_ofst, fig, ax, mode, labels))
 
         if mode == 'Angle':
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
             # instrument coordinate
-            ax.set_ylim(self.gamma_min, self.gamma_max)
-            ax.set_xlim(self.beta_min, self.beta_max)  # instrument coordinate
+            ax.set_ylim(self._gamma_min, self._gamma_max)
+            ax.set_xlim(self._beta_min, self._beta_max)  # instrument coordinate
             ax.set_xlabel(r'$\beta$ ($^\circ$)', fontdict={'size': 10})
             ax.set_ylabel(r'$\gamma$ ($^\circ$)', fontdict={'size': 10})
         elif mode == 'Mosaic':
@@ -502,7 +512,7 @@ class InstrumentModel(MisConfig):
                 fig.suptitle(f'{self.hmsVersion}\nMOSAIC')
             else:
                 fig.suptitle(
-                    f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self.alpha:.1f}^\\circ$')
+                    f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self._alpha:.1f}^\\circ$')
             ax.set_xlim(-self.mosaic.width, 0)
             ax.set_ylim(0, self.mosaic.height)
             ax.invert_xaxis()
@@ -521,8 +531,10 @@ class InstrumentModel(MisConfig):
         else:
             return fig, ax
 
-    def _update_alpha_plot_lines(self, alpha, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool):
-        self.alpha = alpha
+    def _update_alpha_plot_lines(self, alpha, gamma_ofst, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool):
+        self._alpha = alpha
+        if gamma_ofst != self._gamma_ofst:
+            self.set_gamma(gamma_ofst)
 
         if hasattr(self, '_lines'):
             del self._lines
@@ -570,7 +582,7 @@ class InstrumentModel(MisConfig):
 
         for slit in self.slits.keys():
             prod = self._grating_product_lines(
-                slit, self.alpha, n_beta=self.n_beta, n_gamma=self.n_gamma)
+                slit, self._alpha, n_beta=self._n_beta, n_gamma=self._n_gamma)
             for k, v in enumerate(self._wls):
                 wl = v.wavelength
                 visible = True
@@ -591,12 +603,12 @@ class InstrumentModel(MisConfig):
                         continue
                 # accepted
                 to_plot = self._get_lines(
-                    prod, self.alpha, wl, self.blurs[slit])
-                for ord, beta, gamma, res in to_plot:
+                    prod, self._alpha, wl, self._blurs[slit])
+                for ord, beta, gamma_ofst, res in to_plot:
                     plotted = False
                     if mode == 'Mosaic':
                         beta = self._beta_to_mosaic(beta)
-                        gamma = self._gamma_to_mosaic(gamma)
+                        gamma_ofst = self._gamma_to_mosaic(gamma_ofst)
                         # beta = self.image_deg_to_mm(
                         #     beta) - self.mosaic_bottom_left[0]
                         # gamma = self.image_deg_to_mm(
@@ -604,15 +616,15 @@ class InstrumentModel(MisConfig):
                         if self.mosaic.windows is not None:
                             for window in self.mosaic.windows:
                                 plotted = True
-                                valid = window.check_position(wl, beta, gamma)
+                                valid = window.check_position(wl, beta, gamma_ofst)
                                 if not np.any(valid):
                                     continue
                                 line, = ax.plot(
-                                    beta[valid], gamma[valid], **v.plot_styles)
+                                    beta[valid], gamma_ofst[valid], **v.plot_styles)
                                 lines.append((slit, line, ord, wl, res))
                     if not plotted:
                         line, = ax.plot(
-                            beta, gamma, **v.plot_styles, zorder=10)
+                            beta, gamma_ofst, **v.plot_styles, zorder=10)
                         lines.append((slit, line, ord, wl, res))
 
         fig.canvas.mpl_connect("motion_notify_event", hover)
@@ -642,15 +654,15 @@ class InstrumentModel(MisConfig):
                 print(msg, end=end)
 
         if camera is not None:
-            self.camera = camera
+            self._camera = camera
 
-        if self.camera is None:
+        if self._camera is None:
             raise ValueError('Camera parameters not provided.')
 
-        camera = self.camera
+        camera = self._camera
 
         if alpha is not None:
-            self.alpha = alpha
+            self._alpha = alpha
 
         # scale the pixel size to the mosaic coordinate
         dx = abs(camera.pixel_size / camera.scale)
@@ -663,7 +675,7 @@ class InstrumentModel(MisConfig):
         prods: Dict[str, Optional[Dataset]] = {}
         for slit in self.slits.keys():
             prod = self._grating_product_sim(
-                slit, self.alpha, beta_grid, gamma_grid)
+                slit, self._alpha, beta_grid, gamma_grid)
             if prod is not None:
                 prods[slit] = prod
         output = Dataset(
@@ -680,7 +692,7 @@ class InstrumentModel(MisConfig):
                 'slit': list(prods.keys()),
             },
             attrs={
-                'alpha': self.alpha,
+                'alpha': self._alpha,
                 'system': self.hmsVersion,
             }
         )
@@ -799,15 +811,15 @@ class InstrumentModel(MisConfig):
         source_i = source_i[argsort]
 
         if camera is not None:
-            self.camera = camera
+            self._camera = camera
         
-        if self.camera is None:
+        if self._camera is None:
             raise ValueError('Camera parameters not provided.')
         
-        camera = self.camera
+        camera = self._camera
 
         if alpha is not None:
-            self.alpha = alpha
+            self._alpha = alpha
 
         # scale the pixel size to the mosaic coordinate
         dx = abs(camera.pixel_size / camera.scale)
@@ -821,7 +833,7 @@ class InstrumentModel(MisConfig):
         prods: Dict[str, Optional[Dataset]] = {}
         for slit in self.slits.keys():
             prod = self._grating_product_sim(
-                slit, self.alpha, beta_grid, gamma_grid)
+                slit, self._alpha, beta_grid, gamma_grid)
             prods[slit] = prod
 
         valid_keys = [k if v is not None else None for k,
@@ -843,7 +855,7 @@ class InstrumentModel(MisConfig):
                 'slit': valid_keys,
             },
             attrs={
-                'alpha': self.alpha,
+                'alpha': self._alpha,
                 'gmin': [prods[k].attrs['gmin'] for k in valid_keys],
                 'gmax': [prods[k].attrs['gmax'] for k in valid_keys],
             }
@@ -996,7 +1008,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
@@ -1024,7 +1036,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
@@ -1089,7 +1101,7 @@ class InstrumentModel(MisConfig):
             return x[-1]
 
         output.sort(key=sortby, reverse=True)
-        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
@@ -1155,7 +1167,7 @@ class InstrumentModel(MisConfig):
         output = list(filter(filterby, output))
         output.sort(key=sortby, reverse=True)
 
-        fig, ax = self._plot_lines(False, self.alpha, wavelengths, mode='Mosaic',
+        fig, ax = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
                                    default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
