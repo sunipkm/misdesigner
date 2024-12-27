@@ -414,6 +414,21 @@ class InstrumentModel(MisConfig):
                                    default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
         plt.show()
 
+    def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+        """## Plot the given lines on the image plane, in angle or physical coordinates.
+        This mode allows the user to visualize, and explore the line positions on the image plane
+        for a given set of wavelengths by varying the grating angle.
+
+        ### Args:
+            - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. Must be provided if the object was not initialized with wavelengths (from a config file, or otherwise).
+            - `mode (PlotMode, optional)`: Plot coordinates. Defaults to 'Mosaic'.
+            - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
+            - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
+        """
+        fig, ax, _ = self._plot_lines(False, alpha, wavelengths, mode=mode,
+                                      default_style=default_style, labels=True, labelcolor='black', fig_kwargs=fig_kwargs)
+        return fig, ax
+
     def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs, hook=None, setuphook=None) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
@@ -536,7 +551,7 @@ class InstrumentModel(MisConfig):
                 fig.suptitle(f'{self.hmsVersion}\nMOSAIC')
             else:
                 fig.suptitle(
-                    f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self._alpha:.1f}^\\circ$')
+                    f'{self.hmsVersion}\nMOSAIC\n$\\alpha={self._alpha:.1f}^\\circ$ $\\gamma={self._gamma_ofst:.1f}^\\circ$')
             ax.set_xlim(-self.mosaic.width, 0)
             ax.set_ylim(0, self.mosaic.height)
             ax.invert_xaxis()
