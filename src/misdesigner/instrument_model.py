@@ -29,6 +29,7 @@ class InstrumentModel(MisConfig):
     The class is initialized with the instrument optics parameters and the grating parameters.
     """
     EXT = '.json'
+
     @staticmethod
     def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> InstrumentModel:
         """## Load the instrument parameters from a file.
@@ -82,7 +83,8 @@ class InstrumentModel(MisConfig):
         if not overwrite and os.path.exists(path) and os.path.isfile(path):
             raise FileExistsError(f"File {path} already exists.")
         if os.path.splitext(path)[-1].lower() != InstrumentModel.EXT:
-            raise ValueError(f"Invalid file extension for {path}. Please provide a {InstrumentModel.EXT} file.")
+            raise ValueError(f"Invalid file extension for {
+                             path}. Please provide a {InstrumentModel.EXT} file.")
         with open(path, 'w') as ofile:
             ofile.write(params.to_json())
 
@@ -94,7 +96,7 @@ class InstrumentModel(MisConfig):
         """
         instr = MisGratingCfg(self._alpha, self._gamma_ofst)
         return MisInstrument(self.hmsVersion, self, instr, self._input_wls, self._camera)
-    
+
     @staticmethod
     def from_instrument(instr: MisInstrument) -> InstrumentModel:
         """## Create an InstrumentModel object from a MisInstrument object.
@@ -106,10 +108,10 @@ class InstrumentModel(MisConfig):
             - `InstrumentModel`: The InstrumentModel object.
         """
         return InstrumentModel(
-            instr.system, 
-            instr.optics, 
-            instr.alignment.alpha, 
-            gamma_ofst=instr.alignment.gamma_ofst, 
+            instr.system,
+            instr.optics,
+            instr.alignment.alpha,
+            gamma_ofst=instr.alignment.gamma_ofst,
             input_wls=instr.lines,
             camera=instr.camera)
 
@@ -167,7 +169,7 @@ class InstrumentModel(MisConfig):
 
         self.hmsVersion = system.upper()
         self.set_gamma(self._gamma_ofst)
-        
+
     def set_gamma(self, gamma_ofst: Numeric):
         """## Update the grating tilt.
 
@@ -411,7 +413,7 @@ class InstrumentModel(MisConfig):
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
         """
         fig, ax, slider = self._plot_lines(True, alpha, wavelengths, mode=mode,
-                                   default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
+                                           default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
         plt.show()
 
     def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs, hook=None, setuphook=None) -> Optional[Tuple[plt.Figure, plt.Axes]]:
@@ -487,7 +489,8 @@ class InstrumentModel(MisConfig):
             )
 
             resetax = fig.add_subplot(gs[-1, -1])
-            reset_btn = mpl_widgets.Button(resetax, 'Reset', hovercolor='0.975')
+            reset_btn = mpl_widgets.Button(
+                resetax, 'Reset', hovercolor='0.975')
 
             def reset(event):
                 alpha_slider.reset()
@@ -498,12 +501,13 @@ class InstrumentModel(MisConfig):
 
         self._wls = wls
 
-        self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+        self._update_alpha_plot_lines(
+            self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
 
         if sliders:
             alpha_slider.on_changed(
                 lambda x: self._update_alpha_plot_lines(x, self._gamma_ofst, fig, ax, mode, labels, hook))
-            
+
             def key_press(event):
                 if event.key == 'left':
                     self._alpha -= self._grating_angle_step
@@ -515,12 +519,15 @@ class InstrumentModel(MisConfig):
                         self._alpha = self._grating_angle_max
                 if event.key == 'r':
                     self._alpha = self._alpha_orig
-                    self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+                    self._update_alpha_plot_lines(
+                        self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
                 alpha_slider.set_val(self._alpha)
+
             def key_release(event):
                 if event.key == 'left' or event.key == 'right':
                     alpha_slider.set_val(self._alpha)
-                    self._update_alpha_plot_lines(self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+                    self._update_alpha_plot_lines(
+                        self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
             fig.canvas.mpl_connect('key_press_event', key_press)
             fig.canvas.mpl_connect('key_release_event', key_release)
 
@@ -528,7 +535,8 @@ class InstrumentModel(MisConfig):
             fig.suptitle(f'{self.hmsVersion}\ANGLE')
             # instrument coordinate
             ax.set_ylim(self._gamma_min, self._gamma_max)
-            ax.set_xlim(self._beta_min, self._beta_max)  # instrument coordinate
+            # instrument coordinate
+            ax.set_xlim(self._beta_min, self._beta_max)
             ax.set_xlabel(r'$\beta$ ($^\circ$)', fontdict={'size': 10})
             ax.set_ylabel(r'$\gamma$ ($^\circ$)', fontdict={'size': 10})
         elif mode == 'Mosaic':
@@ -640,7 +648,8 @@ class InstrumentModel(MisConfig):
                         if self.mosaic.windows is not None:
                             for window in self.mosaic.windows:
                                 plotted = True
-                                valid = window.check_position(wl, beta, gamma_ofst)
+                                valid = window.check_position(
+                                    wl, beta, gamma_ofst)
                                 if not np.any(valid):
                                     continue
                                 line, = ax.plot(
@@ -661,7 +670,7 @@ class InstrumentModel(MisConfig):
                    camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
                    report: bool = True,
-                   method: IntensityMethod = 'Integrate') -> Dataset:
+                   ) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
         ### Args:
@@ -690,12 +699,16 @@ class InstrumentModel(MisConfig):
         if alpha is not None:
             self._alpha = alpha
 
-        # scale the pixel size to the mosaic coordinate
-        dx = abs(camera.pixel_size / camera.scale)
-        # in mosaic coordinates, goes from right to left, origin at bottom-left corner
-        beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
-        # in mosaic coordinates, goes from bottom to top
-        gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
+        if camera.width is not None and camera.height is not None:  # if the camera projects a fixed size
+            beta_grid = np.linspace(0, -self.mosaic.width, camera.width)
+            gamma_grid = np.linspace(0, self.mosaic.height, camera.height)
+        else:
+            # scale the pixel size to the mosaic coordinate
+            dx = abs(camera.pixel_size / camera.scale)
+            # in mosaic coordinates, goes from right to left, origin at bottom-left corner
+            beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
+            # in mosaic coordinates, goes from bottom to top
+            gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
         # print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
         beta_mesh, _ = np.meshgrid(beta_grid, gamma_grid)
         prods: Dict[str, Optional[Dataset]] = {}
@@ -719,7 +732,7 @@ class InstrumentModel(MisConfig):
             },
             attrs={
                 'alpha': self._alpha,
-                'system': self.hmsVersion,                
+                'system': self.hmsVersion,
                 'config': self.get_instrument().to_dict()
             }
         )
@@ -845,21 +858,25 @@ class InstrumentModel(MisConfig):
 
         if camera is not None:
             self._camera = camera
-        
+
         if self._camera is None:
             raise ValueError('Camera parameters not provided.')
-        
+
         camera = self._camera
 
         if alpha is not None:
             self._alpha = alpha
 
-        # scale the pixel size to the mosaic coordinate
-        dx = abs(camera.pixel_size / camera.scale)
-        # in mosaic coordinates, goes from right to left, origin at bottom-left corner
-        beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
-        # in mosaic coordinates, goes from bottom to top
-        gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
+        if camera.width is not None and camera.height is not None:  # if the camera projects a fixed size
+            beta_grid = np.linspace(0, -self.mosaic.width, camera.width)
+            gamma_grid = np.linspace(0, self.mosaic.height, camera.height)
+        else:
+            # scale the pixel size to the mosaic coordinate
+            dx = abs(camera.pixel_size / camera.scale)
+            # in mosaic coordinates, goes from right to left, origin at bottom-left corner
+            beta_grid = np.arange(0, -self.mosaic.width - dx, -dx)
+            # in mosaic coordinates, goes from bottom to top
+            gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
         # print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
         beta_mesh, _ = np.meshgrid(beta_grid, gamma_grid)
         # print(f'Mesh size: {beta_mesh.shape[0]}x{beta_mesh.shape[1]}')
@@ -903,7 +920,9 @@ class InstrumentModel(MisConfig):
             beta_range = window.get_xrange()
             gamma_range = window.get_yrange()
             report_print(report,
-                         f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
+                         f'Window {window.name}: '
+                         f'β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), '
+                         f'γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
             for skey, slit in self.slits.items():
                 prod = prods[skey]
                 if prod is None:
@@ -935,7 +954,7 @@ class InstrumentModel(MisConfig):
                     gmax = np.max(grange)
                     prod_s = prod.sel(beta=slice(*beta_range),
                                       gamma=slice(*grange))
-                    
+
                     if prod_s.grating_product.values.size == 0:
                         continue
 
@@ -1001,10 +1020,10 @@ class InstrumentModel(MisConfig):
                                     calc_intensity)(llower, uupper)
                                 end = perf_counter_ns()
                             report_print(report,
-                                        f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
+                                         f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
                         elif method == 'Nearest':
                             intensity = np.interp(lam[rvalid], source_wl, source_i) * \
-                                        (dlam[rvalid] * 2)
+                                (dlam[rvalid] * 2)
                             report_print(report, 'Done.')
                         else:
                             raise ValueError(
@@ -1028,12 +1047,12 @@ class InstrumentModel(MisConfig):
                         intensity += dark_rate  # dark current
                         intensities_s.values[rvalid] += intensity
                         props_s.intensity.values[rvalid] += intensity
-                        # intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe)
             report_print(report, f'Window {window.name} processed.')
         # return intensities
         if camera.well_depth is not None:
             camera.well_depth = abs(camera.well_depth)
-            output.total_intensity.values.clip(0, camera.well_depth, out=output.total_intensity.values)
+            output.total_intensity.values.clip(
+                0, camera.well_depth, out=output.total_intensity.values)
             output.intensity.values.clip(
                 0, camera.well_depth, out=output.intensity.values)
         return output
@@ -1052,7 +1071,7 @@ class InstrumentModel(MisConfig):
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
         fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                   default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
+                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
         im = ax.imshow(intensities.values, origin='lower', extent=[
@@ -1080,7 +1099,7 @@ class InstrumentModel(MisConfig):
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
         fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                   default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
+                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
         fig: plt.Figure = fig
         ax: plt.Axes = ax
         intensity: DataArray = input.total_intensity
@@ -1119,19 +1138,21 @@ class InstrumentModel(MisConfig):
             raise ValueError(
                 'Source wavelength and intensity arrays must be of the same size.')
         cax = []
+
         def setuphook(gs: GridSpec, fig: plt.Figure, ax: plt.Axes):
             cax.append(fig.add_subplot(gs[1, :]))
 
         def hook(this: InstrumentModel, fig: plt.Figure, ax: plt.Axes):
-            intensity = this.simulate(source_wl, source_i, method='Nearest', report=False)
+            intensity = this.simulate(
+                source_wl, source_i, method='Nearest', report=False)
             im = ax.imshow(intensity.total_intensity.values, origin='lower', extent=[
                 intensity.beta.values[0], intensity.beta.values[-1], intensity.gamma.values[0], intensity.gamma.values[-1]], cmap=cmap)
             cbar = fig.colorbar(im, cax=cax[0], orientation='horizontal')
             cbar.set_label('Intensity (e$^-$)')
             cbar.formatter.set_useMathText(True)
-            
+
         fig, ax, slider = self._plot_lines(True, self._alpha, None, mode='Mosaic',
-                                   default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs, hook=hook, setuphook=setuphook)
+                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs, hook=hook, setuphook=setuphook)
         plt.show()
 
     def order_map(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
@@ -1173,7 +1194,7 @@ class InstrumentModel(MisConfig):
 
         output.sort(key=sortby, reverse=True)
         fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                   default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
+                                           default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
         colors = [cmap(norm(i)) for i in range(len(output))]
@@ -1239,7 +1260,7 @@ class InstrumentModel(MisConfig):
         output.sort(key=sortby, reverse=True)
 
         fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                   default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
+                                           default_style=default_style, labels=False, labelcolor='k', fig_kwargs=fig_kwargs)
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=len(output) - 1)
         colors = [cmap(norm(i)) for i in range(len(output))]
@@ -1249,7 +1270,8 @@ class InstrumentModel(MisConfig):
             order, bb, gg, lidx = v
             color = colors[kidx]
             ax.plot(bb, gg, color=color, zorder=kidx+5)
-            ax.axhline(0, color=color, lw=0.5, zorder=0, label=f'{slit}: {int(order)}')
+            ax.axhline(0, color=color, lw=0.5, zorder=0,
+                       label=f'{slit}: {int(order)}')
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
         return fig, ax
 # %%

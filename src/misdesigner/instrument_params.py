@@ -219,6 +219,8 @@ class MisCamera:
     pixel_size: float  # pixel size (mm)
     exposure: float  # exposure time (s)
     optical_efficiency: float = 1  # optical efficiency
+    width: Optional[int] = None  # image width (pixels)
+    height: Optional[int] = None  # image height (pixels)
     well_depth: Optional[float] = None # well depth (e-)
     # quantum efficiency curve (wavelength, qe)
     qe_curve: Optional[Tuple[List[float], List[float]]] = None
