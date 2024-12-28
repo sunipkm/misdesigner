@@ -12,4 +12,6 @@
 *.json
 *.jp*g
 *.png
+*.fit*
 !config/instrument_schema.json
+!hmsa_origin*.png

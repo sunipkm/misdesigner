@@ -23,8 +23,8 @@ mpl.rc('text', usetex=usetex)
 
 # %%
 SYSTEM = 'HMS-A ORIGIN'
-SLIT_WIDTH = 75
-SLIT_TO_EDGE = -7 # -3.55 -> -70.8 (α)
+SLIT_WIDTH = 50
+SLIT_TO_EDGE = -5.93 # -3.55 -> -70.8 (α)
 EDGE_TO_MOSAIC = -2.3
 MOSAIC_WIDTH = 52.5
 MOSAIC_X0 = SLIT_TO_EDGE + EDGE_TO_MOSAIC
@@ -46,7 +46,7 @@ grat = MisConfig(400, 442.7, 98.76,
                                 MisMosaicFilter(8.13 + 8, 26.96 + 1.8, 7.5, 27.72, [(6320-50, 6320+50)], name='6300'), # OI, 10nm around 6300
                                 MisMosaicFilter(8.13 + 8 + 7.5, 26.96 + 1.8, 28.57 - 2.68, 27.72, [(7750-125, 7750+125)], name = '7774'), # N2+, 10nm around 4300
                             ]))
-model = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-71.1)
+model = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-71.0)
 # %%
 model.scan_lines([
     MisFeatures(6300, plot_styles={'color': 'red'}),
@@ -65,8 +65,12 @@ source_int = sol['irradiance'].values/10 # W/m^2/nm -> W/m^2/Angstrom
 # %%
 length = max(grat.mosaic.width, grat.mosaic.height)
 IMG_SZ = 1024
-dx = length / IMG_SZ
-camera = MisCamera(254.5, 1, dx, 1)
+dx = 1 / 65
+# %% QE
+qe = np.loadtxt('imx533_rel_qe.csv', delimiter=',').T
+qe[0] *= 10 # nm -> Angstrom
+qe[1] *= 0.91 # max QE 91%
+camera = MisCamera(254.5, 1, dx, 1, qe_curve=(qe[0], qe[1]))
 # %%
 model.intensity_model(source_wl, source_int, camera)
 # %%

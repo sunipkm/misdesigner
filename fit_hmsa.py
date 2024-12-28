@@ -144,24 +144,28 @@ ax.imshow(np.asarray(fullimg)[height//2:],
 # plt.savefig('hmsa_origin_ref.png', dpi=2400, bbox_inches='tight', transparent=True)
 plt.show()
 # %%
-# sol = xr.load_dataset('solar_spectra_air.nc')
-# source_wl = sol['wavelength'].values*10  # nm -> Angstrom
-# source_int = sol['irradiance'].values/10  # W/m^2/nm -> W/m^2/Angstrom
+sol = xr.load_dataset('solar_spectra_air.nc')
+source_wl = sol['wavelength'].values*10  # nm -> Angstrom
+source_int = sol['irradiance'].values/10  # W/m^2/nm -> W/m^2/Angstrom
 
 # # %%
 # length = max(grat.mosaic.width, grat.mosaic.height)
 # IMG_SZ = 1024
 # dx = 1 / 65
 # # %% QE
-# qe = np.loadtxt('imx533_rel_qe.csv', delimiter=',').T
-# qe[0] *= 10  # nm -> Angstrom
-# qe[1] *= 0.91  # max QE 91%
-# camera = MisCamera(254.5, 1, dx, 1, qe_curve=(qe[0], qe[1]))
-# # %%
+qe = np.loadtxt('imx533_rel_qe.csv', delimiter=',').T
+qe[0] *= 10  # nm -> Angstrom
+qe[1] *= 0.91  # max QE 91%
+camera = MisCamera(np.pi*9**2, 
+                   1, 
+                   1/SCALE, 
+                   1, 
+                   qe_curve=(qe[0], qe[1]))
+model.set_camera(camera)
+model.mosaic_map()
 # model.intensity_model(source_wl, source_int, camera)
-# # %%
-# # %%
-# model.store('hmsa_origin.json', True)
-# print('Saved instrument model.')
-# print('Finished.\n')
+# %%
+model.store('hmsa_origin_ship.json', True)
+print('Saved instrument model.')
+print('Finished.\n')
 # %%

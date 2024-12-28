@@ -95,6 +95,22 @@ class InstrumentModel(MisConfig):
         instr = MisGratingCfg(self._alpha, self._gamma_ofst)
         return MisInstrument(self.hmsVersion, self, instr, self._input_wls, self._camera)
     
+    def get_camera(self) -> MisCamera:
+        """## Get the camera parameters.
+
+        ### Returns:
+            - `MisCamera`: The camera parameters.
+        """
+        return self._camera
+    
+    def set_camera(self, camera: MisCamera):
+        """## Set the camera parameters.
+
+        ### Args:
+            - `camera (MisCamera)`: The camera parameters.
+        """
+        self._camera = camera
+    
     @staticmethod
     def from_instrument(instr: MisInstrument) -> InstrumentModel:
         """## Create an InstrumentModel object from a MisInstrument object.
@@ -676,13 +692,14 @@ class InstrumentModel(MisConfig):
                    camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
                    report: bool = True,
-                   method: IntensityMethod = 'Integrate') -> Dataset:
+                   unique: bool = False) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
         ### Args:
             - `camera (MisCamera)`: Throughput and detector specifications. See `MisCamera`.
             - `alpha (Optional[Numeric], optional)`: Grating rotation angle in degrees. Defaults to None. If None, the current grating angle is used.
             - `report (bool, optional)`: Print the progress report. Defaults to True.
+            - `unique (bool, optional)`: If True, only pixels with unique wavelengths are returned. Defaults to False.
 
         ### Returns:
             - `Dataset`: A Dataset object containing the wavelength, resolution, and order for each slit on the mosaic plane.
