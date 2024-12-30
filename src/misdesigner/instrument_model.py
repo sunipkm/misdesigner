@@ -97,6 +97,22 @@ class InstrumentModel(MisConfig):
         instr = MisGratingCfg(self._alpha, self._gamma_ofst)
         return MisInstrument(self.hmsVersion, self, instr, self._input_wls, self._camera)
 
+    def get_camera(self) -> MisCamera:
+        """## Get the camera parameters.
+
+        ### Returns:
+            - `MisCamera`: The camera parameters.
+        """
+        return self._camera
+
+    def set_camera(self, camera: MisCamera):
+        """## Set the camera parameters.
+
+        ### Args:
+            - `camera (MisCamera)`: The camera parameters.
+        """
+        self._camera = camera
+
     @staticmethod
     def from_instrument(instr: MisInstrument) -> InstrumentModel:
         """## Create an InstrumentModel object from a MisInstrument object.
@@ -685,13 +701,14 @@ class InstrumentModel(MisConfig):
                    camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
                    report: bool = True,
-                   ) -> Dataset:
+                   unique: bool = False) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
         ### Args:
             - `camera (MisCamera)`: Throughput and detector specifications. See `MisCamera`.
             - `alpha (Optional[Numeric], optional)`: Grating rotation angle in degrees. Defaults to None. If None, the current grating angle is used.
             - `report (bool, optional)`: Print the progress report. Defaults to True.
+            - `unique (bool, optional)`: If True, only pixels with unique wavelengths are returned. Defaults to False.
 
         ### Returns:
             - `Dataset`: A Dataset object containing the wavelength, resolution, and order for each slit on the mosaic plane.
@@ -822,6 +839,30 @@ class InstrumentModel(MisConfig):
                         props_s.resolution.values[rvalid] = lam[rvalid] / \
                             dlam[rvalid]
             report_print(report, f'Window {window.name} processed.')
+
+        if unique:
+            valid = output['wavelength'].notnull()
+            allvalid = valid.sum(dim=['slit']) == 1
+            bout = Dataset(
+                {
+                'wavelength': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+                'resolution': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+                'order': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+            },
+            coords={
+                'gamma': gamma_grid,
+                'beta': beta_grid,
+            },
+            attrs={
+                'alpha': self._alpha,
+                'system': self.hmsVersion,
+                'config': self.get_instrument().to_dict()
+            }
+            )
+            for slit in self.slits.keys():
+                sel = valid.sel(slit=slit) & allvalid
+                bout['wavelength'].values[sel] = output['wavelength'].values[valid.sel(slit=slit)]
+            pass
         return output
 
     def simulate(self,
@@ -935,9 +976,7 @@ class InstrumentModel(MisConfig):
             beta_range = window.get_xrange()
             gamma_range = window.get_yrange()
             report_print(report,
-                         f'Window {window.name}: '
-                         f'β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), '
-                         f'γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
+                         f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
             for skey, slit in self.slits.items():
                 prod = prods[skey]
                 if prod is None:
@@ -1062,6 +1101,7 @@ class InstrumentModel(MisConfig):
                         intensity += dark_rate  # dark current
                         intensities_s.values[rvalid] += intensity
                         props_s.intensity.values[rvalid] += intensity
+                        # intensities[midx] += (intensity * (dx * dx) * 1e-6 * camera.exposure * qe)
             report_print(report, f'Window {window.name} processed.')
         # return intensities
         if camera.well_depth is not None:
