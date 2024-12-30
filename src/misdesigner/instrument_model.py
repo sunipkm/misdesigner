@@ -700,7 +700,7 @@ class InstrumentModel(MisConfig):
     def mosaic_map(self,
                    camera: MisCamera = None, *,
                    alpha: Optional[Numeric] = None,
-                   report: bool = True,
+                   report: bool = False,
                    unique: bool = False) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
@@ -861,8 +861,11 @@ class InstrumentModel(MisConfig):
             )
             for slit in self.slits.keys():
                 sel = valid.sel(slit=slit) & allvalid
-                bout['wavelength'].values[sel] = output['wavelength'].values[valid.sel(slit=slit)]
-            pass
+                sel = np.where(sel.values)
+                bout['wavelength'].values[sel] = output['wavelength'].sel(slit=slit).values[sel]
+                bout['resolution'].values[sel] = output['resolution'].sel(slit=slit).values[sel]
+                bout['order'].values[sel] = output['order'].sel(slit=slit).values[sel]
+            output = bout
         return output
 
     def simulate(self,
