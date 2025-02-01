@@ -62,6 +62,22 @@ class MisMosaic:
             return np.inf
         lams = [window.max_lambda() for window in self.windows]
         return max(lams)
+    
+    def get_xrange(self, window_name: str) -> Optional[Tuple[float, float]]:
+        if not self.windows:
+            return None
+        for window in self.windows:
+            if window.name == window_name:
+                return window.get_xrange()
+        return None
+    
+    def get_yrange(self, window_name: str) -> Optional[Tuple[float, float]]:
+        if not self.windows:
+            return None
+        for window in self.windows:
+            if window.name == window_name:
+                return window.get_yrange()
+        return None
 
 
 @dataclass_json
@@ -77,9 +93,9 @@ class MisMosaicFilter:
     width: float
     height: float
     ranges: List[Tuple[float, float]]
-    name: Optional[str] = None
+    name: str
 
-    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]], name: Optional[str] = None):
+    def __init__(self, x: float, y: float, width: float, height: float, ranges: List[Tuple[float, float]], name: str):
         self.x = x
         self.y = y
         self.width = width
@@ -219,6 +235,8 @@ class MisCamera:
     pixel_size: float  # pixel size (mm)
     exposure: float  # exposure time (s)
     optical_efficiency: float = 1  # optical efficiency
+    width: Optional[int] = None  # image width (pixels), if specified, the mosaic is assumed to be these many pixels long
+    height: Optional[int] = None  # image height (pixels), if specified, the mosaic is assumed to be these many pixels tall
     well_depth: Optional[float] = None # well depth (e-)
     # quantum efficiency curve (wavelength, qe)
     qe_curve: Optional[Tuple[List[float], List[float]]] = None

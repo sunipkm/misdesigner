@@ -1,15 +1,78 @@
 # %%
 from __future__ import annotations
-from typing import Optional, SupportsFloat as Numeric
+from typing import List, Optional, SupportsFloat as Numeric, Tuple
 import os
 from skimage import transform
 from glob import glob
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+
+from xarray import DataArray
+
+from .instrument_params import MisMosaicFilter
+from .instrument_model import InstrumentModel
 from .utils import find_nearest, open_fits
-from .instrument_model import HMS_ImagePredictor
+# from .instrument_model import HMS_ImagePredictor
 # %%
+
+
+class MapPixel2Wavelength:
+    def __init__(self, model: InstrumentModel):
+        if model._camera is None:
+            raise ValueError('Model must have a camera')
+        if model.mosaic is None:
+            raise ValueError('Model must have a mosaic')
+        if model.mosaic.windows is None or len(model.mosaic.windows) == 0:
+            raise ValueError('Model must have mosaic windows')
+        self._model = model
+
+    def _setup(self):
+        mmap = self._model.mosaic_map(unique=True)
+        imaps = []
+        for window in self._model.mosaic.windows:
+            xr = window.get_xrange()
+            yr = window.get_yrange()
+            wl = self._mmap['wavelength'].sel(gamma=slice(*yr), beta=slice(*xr))
+            wlmin = np.nanmin(wl)
+            wlmax = np.nanmax(wl)
+            ...
+
+    @property
+    def height(self) -> int:
+        return len(self._mmap['gamma'])
+
+    @property
+    def width(self) -> int:
+        return len(self._mmap['beta'])
+
+    def straighten_image(self, image: np.ndarray, panel: Optional[str] = None) -> List[Tuple[MisMosaicFilter, np.ndarray]]:
+        if image.shape != (self.height, self.width):
+            raise ValueError(
+                'Image must have the same dimensions as the mosaic map')
+        image: DataArray = DataArray(
+            image, dims=['gamma', 'beta'], coords={'gamma': self._mmap['gamma'], 'beta': self._mmap['beta']})
+        straightened_images = []
+        # filtering by panel name
+        if panel is not None:
+            panel_names = [window.name for window in self._model.mosaic.windows]
+            panel_names = list(filter(None, panel_names))
+            if len(panel_names) != len(self._model.mosaic.windows):
+                raise ValueError('All mosaic windows must have names for filtering')
+        # make the inverse maps
+        imaps = []
+        for window in self._model.mosaic.windows:
+            # if panel is not None and panel not in window.name:
+            #     continue
+            xr = window.get_xrange()
+            yr = window.get_yrange()
+            wl = self._mmap['wavelength'].sel(gamma=slice(*yr), beta=slice(*xr))
+            wlmin = np.nanmin(wl)
+            wlmax = np.nanmax(wl)
+            ...
+        return straightened_images
+
+    pass
 
 
 class MapPixel2Wl:

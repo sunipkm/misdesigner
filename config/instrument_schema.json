@@ -191,6 +191,14 @@
                     "type": ["number", "null"],
                     "description": "Optical efficiency of the instrument"
                 },
+                "width": {
+                    "type": ["number", "null"],
+                    "description": "Width of the detector (pixels) to match the mosaic width"
+                },
+                "height": {
+                    "type": ["number", "null"],
+                    "description": "Height of the detector (pixels) to match the mosaic height"
+                },
                 "well_depth": {
                     "type": ["number", "null"],
                     "description": "Well depth of the detector (electrons)"
