@@ -22,7 +22,7 @@ mpl.rc('font', **{'family': 'serif',
 mpl.rc('text', usetex=usetex)
 
 # %%
-model = InstrumentModel.load('hmsa_origin.json')
+model = MisInstrumentModel.load('hmsa_origin.json')
 for k, v in model.slits.items():
     SLIT_WIDTH = round(v.width*1e3)
     break

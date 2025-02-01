@@ -1,10 +1,11 @@
 # %%
 from __future__ import annotations
-import os
 from typing import Any, Dict, List, Optional, SupportsFloat as Numeric, Tuple
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
+from matplotlib.axes import Axes
 import numpy as np
+
 
 @dataclass_json
 @dataclass
@@ -51,7 +52,7 @@ class MisMosaic:
             return -np.inf
         lams = [window.min_lambda() for window in self.windows]
         return min(lams)
-    
+
     def max_lambda(self) -> int:
         """## Maximum Wavelength
 
@@ -62,7 +63,7 @@ class MisMosaic:
             return np.inf
         lams = [window.max_lambda() for window in self.windows]
         return max(lams)
-    
+
     def get_xrange(self, window_name: str) -> Optional[Tuple[float, float]]:
         if not self.windows:
             return None
@@ -70,7 +71,7 @@ class MisMosaic:
             if window.name == window_name:
                 return window.get_xrange()
         return None
-    
+
     def get_yrange(self, window_name: str) -> Optional[Tuple[float, float]]:
         if not self.windows:
             return None
@@ -78,6 +79,19 @@ class MisMosaic:
             if window.name == window_name:
                 return window.get_yrange()
         return None
+
+    def get_window(self, window_name: str) -> Optional[MisMosaicFilter]:
+        if not self.windows:
+            return None
+        for window in self.windows:
+            if window.name == window_name:
+                return window
+        return None
+
+    def get_window_names(self) -> List[str]:
+        if not self.windows:
+            return []
+        return [window.name for window in self.windows]
 
 
 @dataclass_json
@@ -114,7 +128,7 @@ class MisMosaicFilter:
 
     def get_xrange(self):
         return (-self.x, -self.x - self.width)
-    
+
     def get_yrange(self):
         return (self.y, self.y + self.height)
 
@@ -129,7 +143,7 @@ class MisMosaicFilter:
         valid &= (-self.x >= beta) & (beta >= -self.x - self.width)
         valid &= (self.y <= gamma) & (gamma <= self.y + self.height)
         return valid
-    
+
     def min_lambda(self) -> int:
         """## Minimum Wavelength
 
@@ -140,7 +154,7 @@ class MisMosaicFilter:
             return -np.inf
         lams = [range[0] for range in self.ranges]
         return min(lams)
-    
+
     def max_lambda(self) -> int:
         """## Maximum Wavelength
 
@@ -193,7 +207,7 @@ class MisSlit:
             return -np.inf
         lams = [range[0] for range in self.ranges]
         return min(lams)
-    
+
     def max_lambda(self) -> int:
         """## Maximum Wavelength
 
@@ -215,7 +229,7 @@ class MisFeatures:
     # key of slit from which light ends up to this panel
     slit_key: Optional[str] = None
     plot_styles: Optional[Dict[str, Any]] = None  # color
-    name: Optional[str] = None
+    name: Optional[str] = None  # name of the feature
 
 
 @dataclass_json
@@ -230,20 +244,22 @@ class MisGratingCfg:
 @dataclass_json
 @dataclass
 class MisCamera:
-    aperture: float # aperture area (mm^2)
+    aperture: float  # aperture area (mm^2)
     scale: float  # pixel scale (mm/pixel)
     pixel_size: float  # pixel size (mm)
     exposure: float  # exposure time (s)
     optical_efficiency: float = 1  # optical efficiency
-    width: Optional[int] = None  # image width (pixels), if specified, the mosaic is assumed to be these many pixels long
-    height: Optional[int] = None  # image height (pixels), if specified, the mosaic is assumed to be these many pixels tall
-    well_depth: Optional[float] = None # well depth (e-)
+    # image width (pixels), if specified, the mosaic is assumed to be these many pixels long
+    width: Optional[int] = None
+    # image height (pixels), if specified, the mosaic is assumed to be these many pixels tall
+    height: Optional[int] = None
+    well_depth: Optional[float] = None  # well depth (e-)
     # quantum efficiency curve (wavelength, qe)
     qe_curve: Optional[Tuple[List[float], List[float]]] = None
     readout_noise: Optional[float] = None  # readout noise (e-) per pixel
     dark_current: Optional[float] = None  # dark current (e-/s/pixel)
 
-    def __init__(self, aperture: float, scale: float, pixel_size: float, exposure: float, optical_efficiency: float  = 1, well_depth: Optional[float] = None, qe_curve: Optional[Tuple[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
+    def __init__(self, aperture: float, scale: float, pixel_size: float, exposure: float, optical_efficiency: float = 1, well_depth: Optional[float] = None, qe_curve: Optional[Tuple[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
         self.aperture = aperture
         self.scale = scale
         self.pixel_size = pixel_size
@@ -254,9 +270,11 @@ class MisCamera:
         self.optical_efficiency = optical_efficiency
         if qe_curve is not None:
             if len(qe_curve) != 2:
-                raise ValueError('Quantum efficiency curve should be a list of two lists.')
+                raise ValueError(
+                    'Quantum efficiency curve should be a list of two lists.')
             if len(qe_curve[0]) != len(qe_curve[1]):
-                raise ValueError('Quantum efficiency curve should have the same length of wavelength and qe.')
+                raise ValueError(
+                    'Quantum efficiency curve should have the same length of wavelength and qe.')
         self.qe_curve = qe_curve
         self.readout_noise = readout_noise
         self.dark_current = dark_current

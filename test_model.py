@@ -47,7 +47,7 @@ grat = MisConfig(400, 442.7, 98.76,
                                 MisMosaicFilter(8.13 + 8, 26.96 + 1.8, 7.5, 27.72, [(6320-50, 6320+50)], name='6300'), # OI, 10nm around 6300
                                 MisMosaicFilter(8.13 + 8 + 7.5, 26.96 + 1.8, 28.57 - 2.68, 27.72, [(7750-125, 7750+125)], name = '7774'), # N2+, 10nm around 4300
                             ]))
-model = InstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-71.0)
+model = MisInstrumentModel(SYSTEM, grat, gamma_ofst=0, alpha=-71.0)
 # %%
 model.scan_lines([
     MisFeatures(6300, plot_styles={'color': 'red'}),

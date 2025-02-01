@@ -1,6 +1,5 @@
 # %%
 from __future__ import annotations
-from datetime import timedelta
 import sys
 from time import perf_counter_ns
 from typing import Dict, List, Literal, Optional, SupportsFloat as Numeric, Tuple
@@ -23,7 +22,7 @@ PlotMode = Literal['Angle', 'Mosaic']
 IntensityMethod = Literal['Integrate', 'Nearest']
 
 
-class InstrumentModel(MisConfig):
+class MisInstrumentModel(MisConfig):
     """## The core of the MISDesigner package.
     This class is used to predict the spectral lines on the image plane for a given set of wavelengths.
     The class is initialized with the instrument optics parameters and the grating parameters.
@@ -31,7 +30,7 @@ class InstrumentModel(MisConfig):
     EXT = '.json'
 
     @staticmethod
-    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> InstrumentModel:
+    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> MisInstrumentModel:
         """## Load the instrument parameters from a file.
 
         ### Args:
@@ -49,18 +48,18 @@ class InstrumentModel(MisConfig):
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
         ext = os.path.splitext(configfile)[-1].lower()
-        if ext == InstrumentModel.EXT:
+        if ext == MisInstrumentModel.EXT:
             with open(configfile, 'r') as ifile:
                 data = ifile.read()
             params: MisInstrument = MisInstrument.from_json(data)
         else:
             raise TypeError(
-                f"Invalid file extension {ext}. Please provide a {InstrumentModel.EXT} file.")
+                f"Invalid file extension {ext}. Please provide a {MisInstrumentModel.EXT} file.")
         if alpha is not None:
             params.alignment.alpha = alpha
         if gamma_ofst is not None:
             params.alignment.gamma_ofst = gamma_ofst
-        instr = InstrumentModel.from_instrument(params)
+        instr = MisInstrumentModel.from_instrument(params)
         return instr
 
     def store(self, path: str = None, overwrite: bool = False):
@@ -75,16 +74,16 @@ class InstrumentModel(MisConfig):
             - `ValueError`: File extension mismatch.
         """
         if path is None:
-            path = f"{self.hmsVersion}.{InstrumentModel.EXT}"
+            path = f"{self.hmsVersion}.{MisInstrumentModel.EXT}"
         params = self.get_instrument()
         dirname = os.path.dirname(path)
         if len(dirname) > 0 and not os.path.exists(dirname):
             os.makedirs(dirname)
         if not overwrite and os.path.exists(path) and os.path.isfile(path):
             raise FileExistsError(f"File {path} already exists.")
-        if os.path.splitext(path)[-1].lower() != InstrumentModel.EXT:
+        if os.path.splitext(path)[-1].lower() != MisInstrumentModel.EXT:
             raise ValueError(f"Invalid file extension for {
-                             path}. Please provide a {InstrumentModel.EXT} file.")
+                             path}. Please provide a {MisInstrumentModel.EXT} file.")
         with open(path, 'w') as ofile:
             ofile.write(params.to_json())
 
@@ -114,7 +113,7 @@ class InstrumentModel(MisConfig):
         self._camera = camera
 
     @staticmethod
-    def from_instrument(instr: MisInstrument) -> InstrumentModel:
+    def from_instrument(instr: MisInstrument) -> MisInstrumentModel:
         """## Create an InstrumentModel object from a MisInstrument object.
 
         ### Args:
@@ -123,7 +122,7 @@ class InstrumentModel(MisConfig):
         ### Returns:
             - `InstrumentModel`: The InstrumentModel object.
         """
-        return InstrumentModel(
+        return MisInstrumentModel(
             instr.system,
             instr.optics,
             instr.alignment.alpha,
@@ -826,7 +825,8 @@ class InstrumentModel(MisConfig):
                         if n == 0:
                             continue
                         lam = prod_s.grating_product.values / n
-                        dlam = prod_s.d_nx.values / n / 2
+                        # d(nλ) = dn λ + n dλ, dn = 0
+                        dlam = prod_s.d_nx.values / n
                         report_print(report,
                                      f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=': ')
                         sys.stdout.flush()
@@ -835,14 +835,16 @@ class InstrumentModel(MisConfig):
                             report_print(report, 'No valid wavelengths.')
                             continue
                         if np.all(~np.isnan(props_s.wavelength.values[rvalid])):
-                            report_print(report, 'ERROR: complete overlap present.')
+                            report_print(
+                                report, 'ERROR: complete overlap present.')
                             props_s.order.values[rvalid] = np.nan
                             props_s.wavelength.values[rvalid] = np.nan
                             props_s.resolution.values[rvalid] = np.nan
                         elif np.any(~np.isnan(props_s.wavelength.values[rvalid])):
                             report_print(
                                 report, 'Warning: partial overlap present.')
-                            locs = np.where(~np.isnan(props_s.wavelength.values[rvalid]))
+                            locs = np.where(
+                                ~np.isnan(props_s.wavelength.values[rvalid]))
                             props_s.order.values[rvalid][locs] = np.nan
                             props_s.wavelength.values[rvalid][locs] = np.nan
                             props_s.resolution.values[rvalid][locs] = np.nan
@@ -1222,7 +1224,7 @@ class InstrumentModel(MisConfig):
         def setuphook(gs: GridSpec, fig: plt.Figure, ax: plt.Axes):
             cax.append(fig.add_subplot(gs[1, :]))
 
-        def hook(this: InstrumentModel, fig: plt.Figure, ax: plt.Axes):
+        def hook(this: MisInstrumentModel, fig: plt.Figure, ax: plt.Axes):
             intensity = this.simulate(
                 source_wl, source_i, method='Nearest', report=False)
             im = ax.imshow(intensity.total_intensity.values, origin='lower', extent=[

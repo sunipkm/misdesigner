@@ -1,7 +1,5 @@
 [build-system]
-requires = [
-  "meson-python",
-]
+requires = ["meson-python"]
 build-backend = "mesonpy"
 
 [project]
@@ -10,14 +8,15 @@ version = "0.0.1"
 description = "Tool for designing and simulating multi-slit imaging spectrographs"
 requires-python = ">=3.8"
 authors = [
-    { name = "Sunip K. Mukherjee", email = "sunipkmukherjee@gmail.com"},
-    { name = "Charmi Patel", email = "charmi_patel@student.uml.edu" }]
+  { name = "Sunip K. Mukherjee", email = "sunipkmukherjee@gmail.com" },
+  { name = "Charmi Patel", email = "charmi_patel2@student.uml.edu" },
+]
 dependencies = [
-    'numpy>=1.20.0',
-    'tqdm>=4.60.0',
-    'astropy>=4.3.0',
-    'xarray',
-    'netcdf4',
-    'dataclasses_json',
-    'scikit-image',
+  'numpy>=1.20.0',
+  'tqdm>=4.60.0',
+  'xarray',
+  'natsort',
+  'netcdf4',
+  'dataclasses_json',
+  'scikit-image',
 ]

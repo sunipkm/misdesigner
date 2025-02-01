@@ -56,6 +56,7 @@ py.install_sources(
     'src/misdesigner/instrument_params.py',
     'src/misdesigner/instrument_model.py',
     'src/misdesigner/multi_integrate.py',
+    'src/misdesigner/pixel_to_wl_map.py',
     'src/misdesigner/utils.py',
   ],
   subdir: 'misdesigner',
