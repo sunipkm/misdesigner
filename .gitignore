@@ -13,5 +13,6 @@
 *.jp*g
 *.png
 *.fit*
-!config/instrument_schema.json
+!schema/instrument_schema.json
 !hmsa_origin*.png
+!examples/*.fit

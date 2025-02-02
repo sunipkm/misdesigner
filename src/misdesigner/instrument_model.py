@@ -416,7 +416,7 @@ class MisInstrumentModel(MisConfig):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
+    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool=False, **fig_kwargs)->Optional[Tuple[plt.Figure, plt.Axes]]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
@@ -426,10 +426,16 @@ class MisInstrumentModel(MisConfig):
             - `mode (PlotMode, optional)`: Plot coordinates. Defaults to 'Mosaic'.
             - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
+            - `modify (bool, optional)`: Return the figure, axes, and slider objects for further modification. Defaults to False.
+            - `fig_kwargs`: Additional keyword arguments for the figure.
         """
         fig, ax, slider = self._plot_lines(True, alpha, wavelengths, mode=mode,
                                            default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
-        plt.show()
+        if modify:
+            return fig, ax
+        else:
+            plt.show()
+        return None
 
     def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
