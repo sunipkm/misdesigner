@@ -114,7 +114,7 @@ class MisMosaicFilter:
         self.y = y
         self.width = width
         self.height = height
-        self.name = name
+        self.name = ''.join(name.strip().split())
         frange = []
         for range in ranges:
             if len(range) != 2:
