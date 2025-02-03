@@ -843,12 +843,18 @@ class MisInstrumentModel(MisConfig):
                         if np.all(~np.isnan(props_s.wavelength.values[rvalid])):
                             report_print(
                                 report, 'ERROR: complete overlap present.')
+                            warnings.warn(
+                                f'Window {window.name}: Complete overlap present for slit {skey} at order {n}.'
+                            )
                             props_s.order.values[rvalid] = np.nan
                             props_s.wavelength.values[rvalid] = np.nan
                             props_s.resolution.values[rvalid] = np.nan
                         elif np.any(~np.isnan(props_s.wavelength.values[rvalid])):
                             report_print(
                                 report, 'Warning: partial overlap present.')
+                            warnings.warn(
+                                f'Window {window.name}: Partial overlap present for slit {skey} at order {n}.'
+                            )
                             locs = np.where(
                                 ~np.isnan(props_s.wavelength.values[rvalid]))
                             props_s.order.values[rvalid][locs] = np.nan

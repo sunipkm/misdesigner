@@ -259,7 +259,7 @@ class MisCamera:
     readout_noise: Optional[float] = None  # readout noise (e-) per pixel
     dark_current: Optional[float] = None  # dark current (e-/s/pixel)
 
-    def __init__(self, aperture: float, scale: float, pixel_size: float, exposure: float, optical_efficiency: float = 1, well_depth: Optional[float] = None, qe_curve: Optional[Tuple[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None):
+    def __init__(self, aperture: float, scale: float, pixel_size: float, exposure: float, optical_efficiency: float = 1, well_depth: Optional[float] = None, qe_curve: Optional[Tuple[List[float], List[float]]] = None, readout_noise: Optional[float] = None, dark_current: Optional[float] = None, width: Optional[int] = None, height: Optional[int] = None):
         self.aperture = aperture
         self.scale = scale
         self.pixel_size = pixel_size
@@ -278,6 +278,8 @@ class MisCamera:
         self.qe_curve = qe_curve
         self.readout_noise = readout_noise
         self.dark_current = dark_current
+        self.width = width
+        self.height = height
 
 
 @dataclass_json

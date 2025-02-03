@@ -4,7 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from natsort import natsorted
 from skimage import transform
 import numpy as np
-from xarray import DataArray, Dataset, concat
+from xarray import DataArray, Dataset, MergeError, concat
+import warnings
 
 from .instrument_params import MisMosaicFilter
 from .instrument_model import MisInstrumentModel
@@ -87,7 +88,7 @@ class MisCurveRemover:
                 order = np.unique(smap['order'])  # find the order
                 order = order[~np.isnan(order)]  # NaN filter
                 if len(order) > 1:  # multiple orders present
-                    raise NotImplementedError(
+                    warnings.warn(
                         f'TODO: Handle the case where multiple orders are present: {order}')
                 elif len(order) == 0:  # no orders present, move on
                     continue
@@ -123,8 +124,11 @@ class MisCurveRemover:
                 mgam /= (gmax - gmin)
                 xform[0, :, :] = mgam * len(wl.gamma.values)
                 xform[1, :, :] = mbet * len(wl.beta.values)
-                coords = {'gamma': wl.gamma.values,
-                          'lambda': wl_array, 'beta': wl.beta.values}
+                coords = {
+                    'gamma': wl.gamma.values,
+                    'lambda': wl_array,
+                    'beta': wl.beta.values
+                }
                 imaps.append((sname.values, window, xform, coords, wl / res))
                 windows.append(window.name)
         self._imaps = imaps
@@ -157,12 +161,13 @@ class MisCurveRemover:
         """
         return self._windows
 
-    def straighten_image(self, image: DataArray, win_name: str) -> DataArray:
+    def straighten_image(self, image: DataArray, win_name: str, *, inplace: bool = True) -> DataArray:
         """## Straighten an image using the wavelength map.
 
         ### Args:
             - `image (DataArray)`: Input image to be straightened. Must be in the same coordinate system as the wavelength map (mosaic).
             - `win_name (str)`: The name of the window to use for straightening.
+            - `inplace (bool, optional)`: If True, the input image will be modified in place. Defaults to True.
 
         ### Returns:
             - `DataArray`: The straightened image.
@@ -178,7 +183,13 @@ class MisCurveRemover:
             xran = (coords['beta'].max(), coords['beta'].min())
             yran = (coords['gamma'].min(), coords['gamma'].max())
             data = image.sel(gamma=slice(*yran), beta=slice(*xran))
-            data /= res
+            if inplace:
+                try:
+                    data /= res
+                except (MergeError, ValueError):
+                    data = data / res
+            else:
+                data = data / res
             # why the fuck do I need to reverse the X axis
             out = transform.warp(data.values[:, ::-1], xform, cval=np.nan)
             out = DataArray(out*10, coords={
