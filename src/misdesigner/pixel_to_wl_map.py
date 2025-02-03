@@ -199,7 +199,7 @@ class MisCurveRemover:
                     'unit': 'mm',
                     'description': 'Height in the mosaic coordinate, increasing from the bottom.'
                 }),
-                'lambda': ('lambda', coords['lambda']/10,
+                'wavelength': ('wavelength', coords['lambda']/10,
                            {
                                'unit': 'nm',
                                'description': 'Wavelength in nanometer',
