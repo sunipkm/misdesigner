@@ -208,6 +208,7 @@ class MisCurveRemover:
             ret.append(out)
         ret: DataArray = concat(ret, dim='gamma')
         ret = ret.sortby('gamma')
+        ret = ret.sortby('wavelength')
         if image.attrs.get('unit') is not None:
             ret.attrs['unit'] = image.attrs['unit'] + ' nm^{-1}'
         else:

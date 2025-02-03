@@ -87,7 +87,7 @@ grat = MisConfig(FL1, FL2, 98.76,
                     ),
                     # N2+, 10 nm around 4300, 905
                      MisMosaicFilter(
-                         13.9 + 8.91 + 9.2, 1.94 + 25.02, 17.5, 25.02, [(4300-50, 4300+50)], name='4278'),
+                         13.9 + 8.91 + 9.2, 1.94 + 25.02, 17.5, 25.02, [(4250-50, 4250+50)], name='4278'),
                  ]))
 model = MisInstrumentModel(SYSTEM, grat, gamma_ofst=GAMMA, alpha=-ALPHA)
 
@@ -171,5 +171,15 @@ fig.colorbar(im)
 # plt.savefig('hmsa_origin_ref.png', dpi=2400, bbox_inches='tight', transparent=True)
 plt.show()
 # %%
-model.store('hmsa_2021.json', True)
+# model.store('hmsa_2021.json', True)
+# %%
+pred = MisCurveRemover(model, mmap)
+img = xr.DataArray(iarray, 
+                   dims=['gamma', 'beta'],
+                   coords={'gamma': pred.gamma_grid, 'beta': pred.beta_grid},
+                   attrs={'unit': 'ADU'})
+ds = pred.straighten_image(img, '4278', inplace=False)
+fig, ax = plt.subplots()
+ds.plot(ax=ax)
+plt.show()
 # %%
