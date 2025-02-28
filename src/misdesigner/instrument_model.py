@@ -82,8 +82,8 @@ class MisInstrumentModel(MisConfig):
         if not overwrite and os.path.exists(path) and os.path.isfile(path):
             raise FileExistsError(f"File {path} already exists.")
         if os.path.splitext(path)[-1].lower() != MisInstrumentModel.EXT:
-            raise ValueError(f"Invalid file extension for {
-                             path}. Please provide a {MisInstrumentModel.EXT} file.")
+            raise ValueError(
+                f"Invalid file extension for {path}. Please provide a {MisInstrumentModel.EXT} file.")
         with open(path, 'w') as ofile:
             ofile.write(params.to_json())
 
@@ -416,7 +416,7 @@ class MisInstrumentModel(MisConfig):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool=False, **fig_kwargs)->Optional[Tuple[plt.Figure, plt.Axes]]:
+    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool = False, **fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
