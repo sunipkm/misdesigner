@@ -20,7 +20,7 @@ class MisCurveRemover:
         """## Constructor for the SpectraCurveRemover class.
 
         ### Args:
-            - `model (InstrumentModel)`: The model of the instrument.
+            - `model (MisInstrumentModel)`: The model of the instrument.
             - `uniquemap (Optional[Dataset], optional)`: Wavelength map of the mosaic, generated with `model.mosaic_map(unique=True)`. Defaults to None, where it will be generated.
 
         ### Raises:

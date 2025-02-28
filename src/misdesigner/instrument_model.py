@@ -43,7 +43,7 @@ class MisInstrumentModel(MisConfig):
             - `TypeError`: Invalid file extension.
 
         ### Returns:
-            - `InstrumentModel`: The InstrumentModel object.
+            - `MisInstrumentModel`: The MisInstrumentModel object.
         """
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
@@ -114,13 +114,13 @@ class MisInstrumentModel(MisConfig):
 
     @staticmethod
     def from_instrument(instr: MisInstrument) -> MisInstrumentModel:
-        """## Create an InstrumentModel object from a MisInstrument object.
+        """## Create an MisInstrumentModel object from a MisInstrument object.
 
         ### Args:
             - `instr (MisInstrument)`: Instrument parameters.
 
         ### Returns:
-            - `InstrumentModel`: The InstrumentModel object.
+            - `MisInstrumentModel`: The MisInstrumentModel object.
         """
         return MisInstrumentModel(
             instr.system,
@@ -1182,7 +1182,7 @@ class MisInstrumentModel(MisConfig):
         """## Plot the intensity map on the mosaic plane.
 
         ### Args:
-            - `input (Dataset)`: Intensity map obtained using the `InstrumentModel.simulate()` function.
+            - `input (Dataset)`: Intensity map obtained using the `MisInstrumentModel.simulate()` function.
             - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
             - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
