@@ -1,6 +1,5 @@
 # %%
 from __future__ import annotations
-from datetime import timedelta
 import sys
 from time import perf_counter_ns
 from typing import Dict, List, Literal, Optional, SupportsFloat as Numeric, Tuple
@@ -23,7 +22,7 @@ PlotMode = Literal['Angle', 'Mosaic']
 IntensityMethod = Literal['Integrate', 'Nearest']
 
 
-class InstrumentModel(MisConfig):
+class MisInstrumentModel(MisConfig):
     """## The core of the MISDesigner package.
     This class is used to predict the spectral lines on the image plane for a given set of wavelengths.
     The class is initialized with the instrument optics parameters and the grating parameters.
@@ -31,7 +30,7 @@ class InstrumentModel(MisConfig):
     EXT = '.json'
 
     @staticmethod
-    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> InstrumentModel:
+    def load(configfile: str, alpha: Optional[Numeric] = None, *, gamma_ofst: Optional[Numeric] = None) -> MisInstrumentModel:
         """## Load the instrument parameters from a file.
 
         ### Args:
@@ -44,23 +43,23 @@ class InstrumentModel(MisConfig):
             - `TypeError`: Invalid file extension.
 
         ### Returns:
-            - `InstrumentModel`: The InstrumentModel object.
+            - `MisInstrumentModel`: The MisInstrumentModel object.
         """
         if not os.path.exists(configfile):
             raise FileNotFoundError(f"File {configfile} not found.")
         ext = os.path.splitext(configfile)[-1].lower()
-        if ext == InstrumentModel.EXT:
+        if ext == MisInstrumentModel.EXT:
             with open(configfile, 'r') as ifile:
                 data = ifile.read()
             params: MisInstrument = MisInstrument.from_json(data)
         else:
             raise TypeError(
-                f"Invalid file extension {ext}. Please provide a {InstrumentModel.EXT} file.")
+                f"Invalid file extension {ext}. Please provide a {MisInstrumentModel.EXT} file.")
         if alpha is not None:
             params.alignment.alpha = alpha
         if gamma_ofst is not None:
             params.alignment.gamma_ofst = gamma_ofst
-        instr = InstrumentModel.from_instrument(params)
+        instr = MisInstrumentModel.from_instrument(params)
         return instr
 
     def store(self, path: str = None, overwrite: bool = False):
@@ -75,16 +74,16 @@ class InstrumentModel(MisConfig):
             - `ValueError`: File extension mismatch.
         """
         if path is None:
-            path = f"{self.hmsVersion}.{InstrumentModel.EXT}"
+            path = f"{self.hmsVersion}.{MisInstrumentModel.EXT}"
         params = self.get_instrument()
         dirname = os.path.dirname(path)
         if len(dirname) > 0 and not os.path.exists(dirname):
             os.makedirs(dirname)
         if not overwrite and os.path.exists(path) and os.path.isfile(path):
             raise FileExistsError(f"File {path} already exists.")
-        if os.path.splitext(path)[-1].lower() != InstrumentModel.EXT:
-            raise ValueError(f"Invalid file extension for {
-                             path}. Please provide a {InstrumentModel.EXT} file.")
+        if os.path.splitext(path)[-1].lower() != MisInstrumentModel.EXT:
+            raise ValueError(
+                f"Invalid file extension for {path}. Please provide a {MisInstrumentModel.EXT} file.")
         with open(path, 'w') as ofile:
             ofile.write(params.to_json())
 
@@ -114,16 +113,16 @@ class InstrumentModel(MisConfig):
         self._camera = camera
 
     @staticmethod
-    def from_instrument(instr: MisInstrument) -> InstrumentModel:
-        """## Create an InstrumentModel object from a MisInstrument object.
+    def from_instrument(instr: MisInstrument) -> MisInstrumentModel:
+        """## Create an MisInstrumentModel object from a MisInstrument object.
 
         ### Args:
             - `instr (MisInstrument)`: Instrument parameters.
 
         ### Returns:
-            - `InstrumentModel`: The InstrumentModel object.
+            - `MisInstrumentModel`: The MisInstrumentModel object.
         """
-        return InstrumentModel(
+        return MisInstrumentModel(
             instr.system,
             instr.optics,
             instr.alignment.alpha,
@@ -374,8 +373,8 @@ class InstrumentModel(MisConfig):
                 'd_nx': (['gamma', 'beta'], dprod),
             },
             coords={
-                'gamma': gamma_grid,
-                'beta': beta_grid
+                'gamma': gamma_grid,  # image plane gamma in mm, mosaic coord
+                'beta': beta_grid,  # image plane beta in mm, mosaic coord
             },
             attrs={
                 'slit': slit,
@@ -417,7 +416,7 @@ class InstrumentModel(MisConfig):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs):
+    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool = False, **fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
@@ -427,10 +426,16 @@ class InstrumentModel(MisConfig):
             - `mode (PlotMode, optional)`: Plot coordinates. Defaults to 'Mosaic'.
             - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
+            - `modify (bool, optional)`: Return the figure, axes, and slider objects for further modification. Defaults to False.
+            - `fig_kwargs`: Additional keyword arguments for the figure.
         """
         fig, ax, slider = self._plot_lines(True, alpha, wavelengths, mode=mode,
                                            default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
-        plt.show()
+        if modify:
+            return fig, ax
+        else:
+            plt.show()
+        return None
 
     def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
@@ -826,18 +831,42 @@ class InstrumentModel(MisConfig):
                         if n == 0:
                             continue
                         lam = prod_s.grating_product.values / n
-                        dlam = prod_s.d_nx.values / n / 2
+                        # d(nλ) = dn λ + n dλ, dn = 0
+                        dlam = prod_s.d_nx.values / n
                         report_print(report,
-                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', ')
+                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=': ')
                         sys.stdout.flush()
                         rvalid = np.where((lam >= rmin) & (lam <= rmax))
                         if len(rvalid[0]) == 0:
                             report_print(report, 'No valid wavelengths.')
                             continue
-                        props_s.order.values[rvalid] = n
-                        props_s.wavelength.values[rvalid] = lam[rvalid]
-                        props_s.resolution.values[rvalid] = lam[rvalid] / \
-                            dlam[rvalid]
+                        if np.all(~np.isnan(props_s.wavelength.values[rvalid])):
+                            report_print(
+                                report, 'ERROR: complete overlap present.')
+                            warnings.warn(
+                                f'Window {window.name}: Complete overlap present for slit {skey} at order {n}.'
+                            )
+                            props_s.order.values[rvalid] = np.nan
+                            props_s.wavelength.values[rvalid] = np.nan
+                            props_s.resolution.values[rvalid] = np.nan
+                        elif np.any(~np.isnan(props_s.wavelength.values[rvalid])):
+                            report_print(
+                                report, 'Warning: partial overlap present.')
+                            warnings.warn(
+                                f'Window {window.name}: Partial overlap present for slit {skey} at order {n}.'
+                            )
+                            locs = np.where(
+                                ~np.isnan(props_s.wavelength.values[rvalid]))
+                            props_s.order.values[rvalid][locs] = np.nan
+                            props_s.wavelength.values[rvalid][locs] = np.nan
+                            props_s.resolution.values[rvalid][locs] = np.nan
+                        else:
+                            report_print(report, 'OK.')
+                            props_s.order.values[rvalid] = n
+                            props_s.wavelength.values[rvalid] = lam[rvalid]
+                            props_s.resolution.values[rvalid] = lam[rvalid] / \
+                                dlam[rvalid]
+                    report_print(report, '')
             report_print(report, f'Window {window.name} processed.')
 
         if unique:
@@ -845,26 +874,33 @@ class InstrumentModel(MisConfig):
             allvalid = valid.sum(dim=['slit']) == 1
             bout = Dataset(
                 {
-                'wavelength': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
-                'resolution': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
-                'order': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
-            },
-            coords={
-                'gamma': gamma_grid,
-                'beta': beta_grid,
-            },
-            attrs={
-                'alpha': self._alpha,
-                'system': self.hmsVersion,
-                'config': self.get_instrument().to_dict()
-            }
+                    'wavelength': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+                    'resolution': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+                    'order': (['gamma', 'beta'], np.full(beta_mesh.shape, np.nan, dtype=float)),
+                    'source': (['gamma', 'beta', 'slit'], np.full((*beta_mesh.shape, len(prods)), False, dtype=bool)),
+                },
+                coords={
+                    'gamma': gamma_grid,
+                    'beta': beta_grid,
+                    'slit': list(prods.keys()),
+                },
+                attrs={
+                    'alpha': self._alpha,
+                    'system': self.hmsVersion,
+                    'config': self.get_instrument().to_dict()
+                }
             )
             for slit in self.slits.keys():
                 sel = valid.sel(slit=slit) & allvalid
                 sel = np.where(sel.values)
-                bout['wavelength'].values[sel] = output['wavelength'].sel(slit=slit).values[sel]
-                bout['resolution'].values[sel] = output['resolution'].sel(slit=slit).values[sel]
-                bout['order'].values[sel] = output['order'].sel(slit=slit).values[sel]
+                bout['wavelength'].values[sel] = output['wavelength'].sel(
+                    slit=slit).values[sel]
+                bout['resolution'].values[sel] = output['resolution'].sel(
+                    slit=slit).values[sel]
+                bout['order'].values[sel] = output['order'].sel(
+                    slit=slit).values[sel]
+                bout['source'].sel(slit=slit).values[sel] = True
+
             output = bout
         return output
 
@@ -1146,7 +1182,7 @@ class InstrumentModel(MisConfig):
         """## Plot the intensity map on the mosaic plane.
 
         ### Args:
-            - `input (Dataset)`: Intensity map obtained using the `InstrumentModel.simulate()` function.
+            - `input (Dataset)`: Intensity map obtained using the `MisInstrumentModel.simulate()` function.
             - `wavelengths (List[int  |  MisFeatures], optional)`: Wavelength features of interest. Defaults to None. If the object was used with a set of features previously, this argument is not required.
             - `default_style (dict, optional)`: Default plot profile for the spectral features. Defaults to {'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}.
             - `cmap (str, optional)`: Color map used to paint the intensity map. Defaults to 'bone'.
@@ -1200,7 +1236,7 @@ class InstrumentModel(MisConfig):
         def setuphook(gs: GridSpec, fig: plt.Figure, ax: plt.Axes):
             cax.append(fig.add_subplot(gs[1, :]))
 
-        def hook(this: InstrumentModel, fig: plt.Figure, ax: plt.Axes):
+        def hook(this: MisInstrumentModel, fig: plt.Figure, ax: plt.Axes):
             intensity = this.simulate(
                 source_wl, source_i, method='Nearest', report=False)
             im = ax.imshow(intensity.total_intensity.values, origin='lower', extent=[

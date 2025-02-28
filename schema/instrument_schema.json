@@ -47,7 +47,10 @@
                                 "description": "Height of the slit (mm)"
                             },
                             "ranges": {
-                                "type": ["array", "null"],
+                                "type": [
+                                    "array",
+                                    "null"
+                                ],
                                 "description": "Wavelength ranges for the slit",
                                 "items": {
                                     "type": "array",
@@ -57,11 +60,19 @@
                                 }
                             }
                         },
-                        "required": ["x", "y", "width", "height"]
+                        "required": [
+                            "x",
+                            "y",
+                            "width",
+                            "height"
+                        ]
                     }
                 },
                 "mosaic": {
-                    "type": ["object", "null"],
+                    "type": [
+                        "object",
+                        "null"
+                    ],
                     "description": "Mosaic configuration. The mosaic coordinate system is set up such that the Z axis is the optical axis, the X axis is the dispersion axis, and the Y axis is the cross-dispersion axis. The grating grooves are parallel to the Y axis. Light travels in the positive direction, from the slit to the grating. Angles are measured in degrees, with positive angles in the counter-clockwise direction. The instrument designer assumes that the mosaic plane is perpendicular to the line from the origin to the mosaic center.",
                     "properties": {
                         "x": {
@@ -81,7 +92,10 @@
                             "description": "Height of the mosaic (mm)"
                         },
                         "windows": {
-                            "type": ["array", "null"],
+                            "type": [
+                                "array",
+                                "null"
+                            ],
                             "description": "Wavelength windows for the mosaic, defined in the mosaic coordinate system. The origin of the mosaic coordinate system is at the bottom left corner of the mosaic, i.e. the mosaic filter at x, y with width and height is on the mosaic the rectangle (x, y), (x + width, y), (x + width, y + height), and (x, y + height).",
                             "items": {
                                 "type": "object",
@@ -103,7 +117,7 @@
                                         "description": "Height of the window (mm)"
                                     },
                                     "name": {
-                                        "type": ["string", "null"],
+                                        "type": "string",
                                         "description": "Name of the window"
                                     },
                                     "ranges": {
@@ -117,17 +131,38 @@
                                         }
                                     }
                                 },
-                                "required": ["x", "y", "width", "height", "ranges"]
+                                "required": [
+                                    "x",
+                                    "y",
+                                    "width",
+                                    "height",
+                                    "ranges",
+                                    "name"
+                                ]
                             }
                         }
                     },
-                    "required": ["x", "y", "width", "height"]
+                    "required": [
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                    ]
                 }
             },
-            "required": ["fl_collimator", "fl_mosaic", "sigma", "slits", "mosaic"]
+            "required": [
+                "fl_collimator",
+                "fl_mosaic",
+                "sigma",
+                "slits",
+                "mosaic"
+            ]
         },
         "alignment": {
-            "type": ["object", "null"],
+            "type": [
+                "object",
+                "null"
+            ],
             "description": "Grating alignment. The grating alignment angles are defined in the instrument coordinate system. The instrument coordinate system is set up such that the Z axis is the optical axis, the X axis is the dispersion axis, and the Y axis is the cross-dispersion axis. The grating grooves are parallel to the Y axis. Light travels in the positive direction, from the slit to the grating. Angles are measured in degrees, with positive angles in the counter-clockwise direction.",
             "properties": {
                 "alpha": {
@@ -139,10 +174,16 @@
                     "description": "Offset angle of the grating in the instrument coordinate system (degrees), along the axis perpendicular to the grooves."
                 }
             },
-            "required": ["alpha", "gamma_ofst"]
+            "required": [
+                "alpha",
+                "gamma_ofst"
+            ]
         },
         "lines": {
-            "type": ["array", "null"],
+            "type": [
+                "array",
+                "null"
+            ],
             "description": "Wavelength calibration lines",
             "items": {
                 "type": "object",
@@ -152,23 +193,37 @@
                         "description": "Wavelength of the line (Angstroms)"
                     },
                     "slit_key": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Key of the slit that the line is associated with"
                     },
                     "plot_styles": {
-                        "type": ["object", "null"],
+                        "type": [
+                            "object",
+                            "null"
+                        ],
                         "description": "Plot styles for the line used by matplotlib"
                     },
                     "name": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Name of the line"
                     }
                 },
-                "required": ["wavelength"]
+                "required": [
+                    "wavelength"
+                ]
             }
         },
         "camera": {
-            "type": ["object", "null"],
+            "type": [
+                "object",
+                "null"
+            ],
             "description": "Camera configuration",
             "properties": {
                 "aperture": {
@@ -188,23 +243,38 @@
                     "description": "Exposure time of the detector (seconds)"
                 },
                 "optical_efficiency": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Optical efficiency of the instrument"
                 },
                 "width": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Width of the detector (pixels) to match the mosaic width"
                 },
                 "height": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Height of the detector (pixels) to match the mosaic height"
                 },
                 "well_depth": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Well depth of the detector (electrons)"
                 },
                 "qe_curve": {
-                    "type": ["array", "null"],
+                    "type": [
+                        "array",
+                        "null"
+                    ],
                     "description": "Quantum efficiency curve of the detector. This is a 2-element array of arrays, where the first array is the wavelength in Angstroms and the second array is the quantum efficiency.",
                     "items": {
                         "type": "array",
@@ -214,16 +284,30 @@
                     }
                 },
                 "readout_noise": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Readout noise of the detector (electrons)"
                 },
                 "dark_current": {
-                    "type": ["number", "null"],
+                    "type": [
+                        "number",
+                        "null"
+                    ],
                     "description": "Dark current of the detector (electrons/second)"
                 }
             },
-            "required": ["aperture", "scale", "pixel_size", "exposure"]
+            "required": [
+                "aperture",
+                "scale",
+                "pixel_size",
+                "exposure"
+            ]
         }
     },
-    "required": ["system", "optics"]
+    "required": [
+        "system",
+        "optics"
+    ]
 }

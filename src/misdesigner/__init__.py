@@ -1,11 +1,12 @@
-from .instrument_model import InstrumentModel, PlotMode, IntensityMethod
+from .instrument_model import MisInstrumentModel, PlotMode, IntensityMethod
 # from .pixel_to_wl_map import MapPixel2Wl
 from .instrument_params import *
+from .pixel_to_wl_map import MisCurveRemover
 import importlib.metadata as metadata
 
 __version__ = metadata.version('misdesigner')
 
-__all__ = ['InstrumentModel',
+__all__ = ['MisInstrumentModel',
            'PlotMode',
            'IntensityMethod',
            'MisConfig',
@@ -16,4 +17,5 @@ __all__ = ['InstrumentModel',
            'MisGratingCfg',
            'MisInstrument',
            'MisCamera',
+           'MisCurveRemover',
            '__version__',]
