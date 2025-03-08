@@ -178,8 +178,9 @@ img = xr.DataArray(iarray,
                    dims=['gamma', 'beta'],
                    coords={'gamma': pred.gamma_grid, 'beta': pred.beta_grid},
                    attrs={'unit': 'ADU'})
-ds = pred.straighten_image(img, '4278', inplace=False)
-fig, ax = plt.subplots()
-ds.plot(ax=ax)
-plt.show()
+for win in pred.windows:
+    ds = pred.straighten_image(img, win, inplace=True, coord='Slit')
+    fig, ax = plt.subplots()
+    ds.plot(ax=ax)
+    plt.show()
 # %%

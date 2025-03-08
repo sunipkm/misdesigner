@@ -1,6 +1,6 @@
 # %%
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, get_args
 from natsort import natsorted
 from skimage import transform
 import numpy as np
@@ -10,6 +10,8 @@ import warnings
 from .instrument_params import MisMosaicFilter
 from .instrument_model import MisInstrumentModel
 # %%
+
+StraightenCoordinate = Literal['Mosaic', 'Slit', 'Grating']
 
 
 class MisCurveRemover:
@@ -161,13 +163,14 @@ class MisCurveRemover:
         """
         return self._windows
 
-    def straighten_image(self, image: DataArray, win_name: str, *, inplace: bool = True) -> DataArray:
+    def straighten_image(self, image: DataArray, win_name: str, *, inplace: bool = True, coord: StraightenCoordinate = 'Mosaic') -> DataArray:
         """## Straighten an image using the wavelength map.
 
         ### Args:
             - `image (DataArray)`: Input image to be straightened. Must be in the same coordinate system as the wavelength map (mosaic).
             - `win_name (str)`: The name of the window to use for straightening.
             - `inplace (bool, optional)`: If True, the input image will be modified in place. Defaults to True.
+            - `coord (StraightenCoordinate, optional): If `Mosaic`, use the mosaic coordinate (mm) for the coordinate parallel to grating ruling. If `Grating`, use the grating coordinate (angle, deg) for light incident on the grating. If `Slit`, use the instrument coordinate (mm) at the slit.
 
         ### Returns:
             - `DataArray`: The straightened image.
@@ -176,7 +179,8 @@ class MisCurveRemover:
         """
         if self._imaps is None:
             raise ValueError('Must setup first')
-        ret = []
+        ret: List = []
+
         for _, window, xform, coords, res in self._imaps:
             if window.name != win_name:
                 continue
@@ -192,25 +196,44 @@ class MisCurveRemover:
                 data = data / res
             # why the fuck do I need to reverse the X axis
             out = transform.warp(data.values[:, ::-1], xform, cval=np.nan)
-            out = DataArray(out*10, coords={
-                'gamma': ('gamma', coords['gamma'],
-                          {
-                    'coodinate': 'Mosaic',
+            if coord == 'Mosaic':
+                gamma = ('gamma', coords['gamma'],
+                         {
+                    'coodinate': coord,
                     'unit': 'mm',
                     'description': 'Height in the mosaic coordinate, increasing from the bottom.'
-                }),
+                })
+            elif coord == 'Grating':
+                gamma = ('gamma', self._model._gamma_from_image(self._model._gamma_from_mosaic(coords['gamma'])),
+                         {
+                    'coodinate': coord,
+                    'unit': 'deg',
+                    'description': 'Angle in the instrument coordinate.'
+                })
+            elif coord == 'Slit':
+                gamma = ('gamma', self._model._gamma_to_slit(self._model._gamma_from_image(self._model._gamma_from_mosaic(coords['gamma']))),
+                         {
+                    'coodinate': coord,
+                    'unit': 'mm',
+                    'description': 'Height in the instrument coordinate.'
+                })
+            else:
+                raise ValueError(
+                    f'Invalid value for coord: {coord}. Valid values are {", ".join(get_args(StraightenCoordinate))}.')
+            out = DataArray(out*10, coords={
+                'gamma': gamma,
                 'wavelength': ('wavelength', coords['lambda']/10,
-                           {
+                               {
                                'unit': 'nm',
                                'description': 'Wavelength in nanometer',
-                }),
+                               }),
             })
             ret.append(out)
-        ret: DataArray = concat(ret, dim='gamma')
-        ret = ret.sortby('gamma')
-        ret = ret.sortby('wavelength')
+        out: DataArray = concat(ret, dim='gamma')
+        out = out.sortby('gamma')
+        out = out.sortby('wavelength')
         if image.attrs.get('unit') is not None:
-            ret.attrs['unit'] = image.attrs['unit'] + ' nm^{-1}'
+            out.attrs['unit'] = image.attrs['unit'] + ' nm^{-1}'
         else:
-            ret.attrs['unit'] = 'nm^{-1}'
-        return ret
+            out.attrs['unit'] = 'nm^{-1}'
+        return out

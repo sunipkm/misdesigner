@@ -270,7 +270,7 @@ class MisInstrumentModel(MisConfig):
         beta = np.arcsin(sinb)
         return np.rad2deg(beta)
 
-    def _gamma_to_image(self, gamma):
+    def _gamma_to_image(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
         """Converts gamma in grating coordinate (degrees) to image coordinate (degrees)."""
         # for a reflective grating
         # additional -90 from going back to instrument coordinate
@@ -278,15 +278,27 @@ class MisInstrumentModel(MisConfig):
         vlen = np.tan(np.deg2rad(val))*self.fl_collimator
         return np.rad2deg(np.arctan(vlen / self.fl_mosaic))
 
+    def _gamma_to_slit(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+        """Converts gamma in grating coordinate (angle) to gamma in slit coordinate (mm)."""
+        return np.tan(np.deg2rad(90 - gamma))*self.fl_collimator
+
     def _gamma_to_mosaic(self, gamma):
         """Converts gamma in image coordinate (degrees) to mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner)."""
         return self._image_deg_to_mm(gamma) - self._mosaic_bottom_left[1]
 
-    def _gamma_from_mosaic(self, gamma):
+    def _gamma_from_mosaic(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
         """Converts gamma in mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner) to image coordinate (degrees)."""
         return self._image_mm_to_deg(gamma + self._mosaic_bottom_left[1])
 
-    def _gamma_from_image(self, gamma):
+    def _gamma_from_image(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+        """Converts gamma in angle, post-grating, to pre-grating coordinate (degrees).
+
+        Args:
+            gamma (Numeric | np.ndarray): Input gamma (in degrees)
+
+        Returns:
+            Numeric | np.ndarray: Output gamma (in degrees)
+        """
         vlen = np.tan(np.deg2rad(gamma))*self.fl_mosaic
         val = np.rad2deg(np.arctan(vlen / self.fl_collimator))
         return 90 + val
