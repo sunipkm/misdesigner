@@ -2,7 +2,7 @@
 from __future__ import annotations
 import sys
 from time import perf_counter_ns
-from typing import Dict, List, Literal, Optional, SupportsFloat as Numeric, Tuple
+from typing import Any, Dict, List, Literal, Optional, SupportsFloat as Numeric, Tuple
 import os
 import warnings
 from matplotlib.gridspec import GridSpec
@@ -142,7 +142,7 @@ class MisInstrumentModel(MisConfig):
             n_beta: int = 200,
             n_gamma: int = 100,
             input_wls: Optional[List[MisFeatures]] = [],
-            camera: MisCamera = None):
+            camera: Optional[MisCamera] = None):
         """## Initialize the LinePredictor object.
 
         ### Args:
@@ -166,16 +166,18 @@ class MisInstrumentModel(MisConfig):
         )
 
         if alpha is not None:
-            self._alpha = alpha
-        self._gamma_ofst = gamma_ofst
+            self._alpha = float(alpha)
+        self._gamma_ofst = float(gamma_ofst)
         self._input_wls = input_wls
         self._camera = camera
+        amin = float(alpha_min)
+        amax = float(alpha_max)
 
-        if alpha_min > alpha_max:
-            alpha_min, alpha_max = alpha_max, alpha_min
-        self._grating_angle_min = alpha_min
-        self._grating_angle_max = alpha_max
-        self._grating_angle_step = abs(alpha_step)
+        if amin > amax:
+            amin, amax = amax, amin
+        self._grating_angle_min = amin
+        self._grating_angle_max = amax
+        self._grating_angle_step = abs(float(alpha_step))
 
         self._n_beta = n_beta
         self._n_gamma = n_gamma
@@ -227,20 +229,28 @@ class MisInstrumentModel(MisConfig):
     def _slit_blurs(self):
         return {k: 2*np.arctan(v.width/2/self.fl_collimator) for k, v in self.slits.items()}
 
-    def _relative_alpha(self, slit: str, grating_angle: Numeric | np.ndarray) -> Numeric | np.ndarray:
+    def _relative_alpha(self, slit: str, grating_angle: Numeric | np.ndarray) -> float | np.ndarray:
         v = self.slits[slit]
         ofst = np.rad2deg(np.arctan(v.x / self.fl_collimator))
-        return ofst - grating_angle
+        return ofst - float(grating_angle)
 
     def _relative_gammas(self, gamma):  # grating coordinate
         gammas = {}
         for k, v in self.slits.items():
             min_gamma = 90 + \
-                (-gamma +
-                 np.rad2deg(np.arctan((v.y - v.height/2) / self.fl_collimator)))
+                (
+                    -gamma +
+                    np.rad2deg(
+                        np.arctan((v.y - v.height/2) / self.fl_collimator)
+                    )
+                )
             max_gamma = 90 + \
-                (-gamma +
-                 np.rad2deg(np.arctan((v.y + v.height/2) / self.fl_collimator)))
+                (
+                    -gamma +
+                    np.rad2deg(
+                        np.arctan((v.y + v.height/2) / self.fl_collimator)
+                    )
+                )
             if min_gamma < max_gamma:
                 min_gamma, max_gamma = max_gamma, min_gamma
             gammas[k] = (min_gamma, max_gamma)
@@ -270,27 +280,28 @@ class MisInstrumentModel(MisConfig):
         beta = np.arcsin(sinb)
         return np.rad2deg(beta)
 
-    def _gamma_to_image(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+    def _gamma_to_image(self, gamma: Numeric | np.ndarray) -> float | np.ndarray:
         """Converts gamma in grating coordinate (degrees) to image coordinate (degrees)."""
         # for a reflective grating
         # additional -90 from going back to instrument coordinate
-        val = 90 - gamma
-        vlen = np.tan(np.deg2rad(val))*self.fl_collimator
-        return np.rad2deg(np.arctan(vlen / self.fl_mosaic))
+        # val = 90 - gamma
+        # vlen = np.tan(np.deg2rad(val))*self.fl_collimator
+        # return np.rad2deg(np.arctan(vlen / self.fl_mosaic))
+        return 90 - float(gamma)
 
-    def _gamma_to_slit(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+    def _gamma_to_slit(self, gamma: Numeric | np.ndarray) -> float | np.ndarray:
         """Converts gamma in grating coordinate (angle) to gamma in slit coordinate (mm)."""
-        return np.tan(np.deg2rad(90 - gamma))*self.fl_collimator
+        return np.tan(np.deg2rad(90 - float(gamma)))*self.fl_collimator
 
     def _gamma_to_mosaic(self, gamma):
         """Converts gamma in image coordinate (degrees) to mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner)."""
         return self._image_deg_to_mm(gamma) - self._mosaic_bottom_left[1]
 
-    def _gamma_from_mosaic(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+    def _gamma_from_mosaic(self, gamma: Numeric | np.ndarray) -> float | np.ndarray:
         """Converts gamma in mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner) to image coordinate (degrees)."""
         return self._image_mm_to_deg(gamma + self._mosaic_bottom_left[1])
 
-    def _gamma_from_image(self, gamma: Numeric | np.ndarray) -> Numeric | np.ndarray:
+    def _gamma_from_image(self, gamma: Numeric | np.ndarray) -> float | np.ndarray:
         """Converts gamma in angle, post-grating, to pre-grating coordinate (degrees).
 
         Args:
@@ -299,15 +310,15 @@ class MisInstrumentModel(MisConfig):
         Returns:
             Numeric | np.ndarray: Output gamma (in degrees)
         """
-        vlen = np.tan(np.deg2rad(gamma))*self.fl_mosaic
+        vlen = np.tan(np.deg2rad(float(gamma)))*self.fl_mosaic
         val = np.rad2deg(np.arctan(vlen / self.fl_collimator))
         return 90 + val
 
-    def _beta_from_mosaic(self, beta):
+    def _beta_from_mosaic(self, beta) -> float | np.ndarray:
         """Converts beta in mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner) to image coordinate (degrees)."""
         return self._image_mm_to_deg(beta + self._mosaic_bottom_left[0])
 
-    def _beta_to_mosaic(self, beta):
+    def _beta_to_mosaic(self, beta) -> float | np.ndarray:
         """Converts beta in image coordinate (degrees) to mosaic coordinate (mm, relative to mosaic, origin at bottom-left corner)."""
         return self._image_deg_to_mm(beta) - self._mosaic_bottom_left[0]
 
@@ -317,7 +328,7 @@ class MisInstrumentModel(MisConfig):
     def _beta_to_grating(self, beta, grating_angle):
         return beta - grating_angle
 
-    def _grating_product_lines(self, slit: str, grating_angle: Numeric, *, n_beta: int, n_gamma: int) -> Dataset:
+    def _grating_product_lines(self, slit: str, grating_angle: Numeric, *, n_beta: int, n_gamma: int) -> Optional[Dataset]:
         alpha = self._relative_alpha(slit, grating_angle)  # grating coord
         if alpha < -90 or alpha > 90:
             warnings.warn(
@@ -354,7 +365,7 @@ class MisInstrumentModel(MisConfig):
             }
         )
 
-    def _grating_product_sim(self, slit: str, grating_angle: Numeric, beta_grid: np.ndarray, gamma_grid: np.ndarray) -> Dataset:
+    def _grating_product_sim(self, slit: str, grating_angle: Numeric, beta_grid: np.ndarray, gamma_grid: np.ndarray) -> Optional[Dataset]:
         alpha = self._relative_alpha(slit, grating_angle)  # grating coord
         if alpha < -90 or alpha > 90:
             warnings.warn(
@@ -417,9 +428,11 @@ class MisInstrumentModel(MisConfig):
                 prod.attrs['alpha'],
                 prod.gamma_arr.values[:, 0],
                 ord, wavelength)  # grating coordinate
-            res = ord*wavelength/(self._den*np.cos(np.deg2rad(beta))
-                                  # mλ/(d*cos(β))
-                                  * self._blurs[prod.attrs['slit']])
+            res = ord*wavelength/(
+                self._den*np.cos(np.deg2rad(beta))
+                # mλ/(d*cos(β))
+                * self._blurs[prod.attrs['slit']]
+            )
             # res = np.sin(np.deg2rad(prod.gamma_arr.values[:, 0])) \
             #     * (np.sin(np.deg2rad(beta)) + np.sin(np.deg2rad(prod.attrs['alpha']))) \
             #     / (self.blurs[prod.attrs['slit']]*np.cos(np.deg2rad(beta))) # sin(γ)*(sin(β)+sin(α))/(B*cos(β))
@@ -428,7 +441,7 @@ class MisInstrumentModel(MisConfig):
             lines.append((ord, beta, prod.gamma.values, res))
         return lines
 
-    def scan_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool = False, **fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
+    def scan_lines(self, wavelengths: Optional[List[int | MisFeatures]] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, modify: bool = False, **fig_kwargs) -> Optional[Tuple[plt.Figure, plt.Axes]]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
@@ -441,15 +454,23 @@ class MisInstrumentModel(MisConfig):
             - `modify (bool, optional)`: Return the figure, axes, and slider objects for further modification. Defaults to False.
             - `fig_kwargs`: Additional keyword arguments for the figure.
         """
-        fig, ax, slider = self._plot_lines(True, alpha, wavelengths, mode=mode,
-                                           default_style=default_style, labels=False, labelcolor='black', fig_kwargs=fig_kwargs)
-        if modify:
-            return fig, ax
-        else:
-            plt.show()
+        res = self._plot_lines(
+            True, alpha, wavelengths,
+            mode=mode,
+            default_style=default_style,
+            labels=False,
+            labelcolor='black',
+            fig_kwargs=fig_kwargs,
+        )
+        if res is not None:
+            fig, ax, _ = res
+            if modify:
+                return fig, ax
+            else:
+                plt.show()
         return None
 
-    def plot_lines(self, wavelengths: List[int | MisFeatures] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def plot_lines(self, wavelengths: Optional[List[int | MisFeatures]] = None, *, mode: PlotMode = 'Mosaic', default_style={'ls': '-.', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, alpha: Optional[Numeric] = None, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the given lines on the image plane, in angle or physical coordinates.
         This mode allows the user to visualize, and explore the line positions on the image plane
         for a given set of wavelengths by varying the grating angle.
@@ -460,20 +481,27 @@ class MisInstrumentModel(MisConfig):
             - `default_style (dict, optional)`: Default style for plotting the spectral features. Defaults to dot-dashed lines, line width 0.5, marker size 0.2, color black. Note: The colors for the first 10 features without specified colors are automatically assigned.
             - `alpha (Optional[Numeric], optional)`: Initial grating angle in degrees. Must be a value between -90 deg and 90 deg. Defaults to None.
         """
-        fig, ax, _ = self._plot_lines(False, alpha, wavelengths, mode=mode,
-                                      default_style=default_style, labels=True, labelcolor='black', fig_kwargs=fig_kwargs)
-        return fig, ax
+        res = self._plot_lines(
+            False, alpha, wavelengths,
+            mode=mode,
+            default_style=default_style,
+            labels=True, labelcolor='black',
+            fig_kwargs=fig_kwargs,
+        )
+        if res is not None:
+            fig, ax, _ = res
+            return fig, ax
 
-    def _plot_lines(self, sliders: bool, alpha: Numeric, wavelengths: List[int | MisFeatures], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs, hook=None, setuphook=None) -> Optional[Tuple[plt.Figure, plt.Axes]]:
+    def _plot_lines(self, sliders: bool, alpha: Optional[Numeric], wavelengths: Optional[List[int | MisFeatures]], *, mode: PlotMode, default_style, labels, labelcolor, fig_kwargs, hook=None, setuphook=None) -> Optional[Tuple[plt.Figure, plt.Axes, Any]]:
         NUM_COLORS = 10
         cmap = plt.cm.gist_rainbow
         norm = mpl.colors.Normalize(vmin=0, vmax=NUM_COLORS - 1)
         colors = [cmap(norm(i)) for i in range(NUM_COLORS)]
 
         if alpha is not None:
-            self._alpha = alpha
+            self._alpha = float(alpha)
         elif not hasattr(self, '_alpha'):
-            self._alpha = 0
+            self._alpha = 0.0
 
         self._alpha_orig = self._alpha
 
@@ -483,8 +511,10 @@ class MisInstrumentModel(MisConfig):
                 if isinstance(v, int):
                     self._input_wls[k] = MisFeatures(v)
             wls = wavelengths
-        else:
+        elif self._input_wls is not None:
             wls = self._input_wls.copy()
+        else:
+            raise ValueError('No wavelengths provided for plotting.')
         for k, v in enumerate(wls):
             if isinstance(v, int):
                 style = default_style.copy()
@@ -545,14 +575,18 @@ class MisInstrumentModel(MisConfig):
 
             reset_btn.on_clicked(reset)
         else:
+            alpha_slider = None
+            reset_btn = None
             ax = fig.subplots()
 
         self._wls = wls
 
         self._update_alpha_plot_lines(
-            self._alpha, self._gamma_ofst, fig, ax, mode, labels, hook)
+            self._alpha, self._gamma_ofst,
+            fig, ax, mode, labels, hook
+        )
 
-        if sliders:
+        if alpha_slider is not None:
             alpha_slider.on_changed(
                 lambda x: self._update_alpha_plot_lines(x, self._gamma_ofst, fig, ax, mode, labels, hook))
 
@@ -600,19 +634,27 @@ class MisInstrumentModel(MisConfig):
             ax.set_ylabel(r'$\gamma$ (mm)', fontdict={'size': 10})
             if self.mosaic.windows is not None:
                 for window in self.mosaic.windows:
-                    ax.add_patch(plt.Rectangle(
-                        (-window.x-window.width, window.y), window.width, window.height, edgecolor='black', facecolor='none', lw=0.5, zorder=99))
+                    ax.add_patch(
+                        plt.Rectangle(
+                            (-window.x-window.width, window.y),
+                            window.width, window.height,
+                            edgecolor='black', facecolor='none',
+                            lw=0.5, zorder=99
+                        )
+                    )
                     if window.name is not None:
-                        ax.text(-window.x, window.y+window.height, window.name,
-                                va='top', ha='left', zorder=99, color=labelcolor)
+                        ax.text(
+                            -window.x, window.y+window.height, window.name,
+                            va='top', ha='left', zorder=99, color=labelcolor
+                        )
         ax.set_aspect('equal')
-        if sliders:
+        if alpha_slider is not None:
             return fig, ax, (alpha_slider, reset_btn)
         else:
             return fig, ax, None
 
     def _update_alpha_plot_lines(self, alpha, gamma_ofst, fig: plt.Figure, ax: plt.Axes, mode: PlotMode, labels: bool, hook=None):
-        self._alpha = alpha
+        self._alpha = float(alpha)
         if gamma_ofst != self._gamma_ofst:
             self.set_gamma(gamma_ofst)
 
@@ -683,7 +725,8 @@ class MisInstrumentModel(MisConfig):
                         continue
                 # accepted
                 to_plot = self._get_lines(
-                    prod, self._alpha, wl, self._blurs[slit])
+                    prod, self._alpha, wl, self._blurs[slit]
+                )
                 for ord, beta, gamma_ofst, res in to_plot:
                     plotted = False
                     if mode == 'Mosaic':
@@ -714,11 +757,13 @@ class MisInstrumentModel(MisConfig):
         self._lines = lines
         self._annot = annot
 
-    def mosaic_map(self,
-                   camera: MisCamera = None, *,
-                   alpha: Optional[Numeric] = None,
-                   report: bool = False,
-                   unique: bool = False) -> Dataset:
+    def mosaic_map(
+        self,
+        camera: Optional[MisCamera] = None, *,
+        alpha: Optional[Numeric] = None,
+        report: bool = False,
+        unique: bool = False
+    ) -> Dataset:
         """## Generate a map of wavelengths on the mosaic plane for each slit.
 
         ### Args:
@@ -746,7 +791,7 @@ class MisInstrumentModel(MisConfig):
         camera = self._camera
 
         if alpha is not None:
-            self._alpha = alpha
+            self._alpha = float(alpha)
 
         if camera.width is not None and camera.height is not None:  # if the camera projects a fixed size
             beta_grid = np.linspace(0, -self.mosaic.width, camera.width)
@@ -760,10 +805,12 @@ class MisInstrumentModel(MisConfig):
             gamma_grid = np.arange(0, self.mosaic.height + dx, dx)
         # print(f'Grid size: {len(beta_grid)}x{len(gamma_grid)}')
         beta_mesh, _ = np.meshgrid(beta_grid, gamma_grid)
-        prods: Dict[str, Optional[Dataset]] = {}
+        prods: Dict[str, Dataset] = {}
         for slit in self.slits.keys():
             prod = self._grating_product_sim(
-                slit, self._alpha, beta_grid, gamma_grid)
+                slit, self._alpha,
+                beta_grid, gamma_grid,
+            )
             if prod is not None:
                 prods[slit] = prod
         output = Dataset(
@@ -786,100 +833,103 @@ class MisInstrumentModel(MisConfig):
             }
         )
 
-        for window in self.mosaic.windows:
-            beta_range = window.get_xrange()
-            gamma_range = window.get_yrange()
-            report_print(report,
-                         f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})')
-            for skey, slit in self.slits.items():
-                prod = prods[skey]
-                if prod is None:
-                    continue
-                prod: Dataset = prod
-                # it is guaranteed to be not None at this point
-                props: Dataset = output.sel(slit=skey)
-                wl_range = []
-                for r in window.ranges:
-                    if slit.ranges is not None and len(slit.ranges) > 0:
-                        wl_range += common_range(slit.ranges, r)
-                    else:
-                        wl_range.append(r)
-                for r in wl_range:
-                    rmin = r[0]
-                    rmax = r[1]
-                    grange = common_range(
-                        [(prod.attrs["gmin"], prod.attrs["gmax"])], gamma_range)
-                    if len(grange) != 1:
-                        if len(grange) > 1:
-                            warnings.warn(
-                                f'Gamma range for slit {skey} is outside the window range {window.name}: Mosaic: {gamma_range}, Slit: ({prod.attrs["gmin"]}, {prod.attrs["gmax"]}).')
+        if self.mosaic.windows is not None:
+            for window in self.mosaic.windows:
+                beta_range = window.get_xrange()
+                gamma_range = window.get_yrange()
+                report_print(
+                    report,
+                    f'Window {window.name}: β ({beta_range[0]:.2f}, {beta_range[1]:.2f}), γ ({(gamma_range[0]):.2f}, {gamma_range[1]:.2f})'
+                )
+                for skey, slit in self.slits.items():
+                    prod = prods[skey]
+                    if prod is None:
                         continue
-                    grange = grange[0]
-
-                    bmin = np.min(beta_range)
-                    bmax = np.max(beta_range)
-                    gmin = np.min(grange)
-                    gmax = np.max(grange)
-                    prod_s = prod.sel(beta=slice(*beta_range),
-                                      gamma=slice(*grange))
-                    if prod_s.grating_product.values.size == 0:
-                        continue
-                    props_s = props.sel(beta=slice(*beta_range),
-                                        gamma=slice(*grange))
-
-                    n1_min, n1_max = sign_ceil(
-                        np.nanmin(prod_s.grating_product.values / rmin)), sign_floor(np.nanmax(prod_s.grating_product.values / rmin))
-                    n2_min, n2_max = sign_ceil(
-                        np.nanmin(prod_s.grating_product.values / rmax)), sign_floor(np.nanmax(prod_s.grating_product.values / rmax))
-                    n_min = int(min(n1_min, n2_min))
-                    n_max = int(max(n1_max, n2_max))
-                    if n_min > n_max:
-                        n_min, n_max = n_max, n_min
-
-                    report_print(report,
-                                 f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
-
-                    for n in range(n_min, n_max + 1):
-                        if n == 0:
-                            continue
-                        lam = prod_s.grating_product.values / n
-                        # d(nλ) = dn λ + n dλ, dn = 0
-                        dlam = prod_s.d_nx.values / n
-                        report_print(report,
-                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=': ')
-                        sys.stdout.flush()
-                        rvalid = np.where((lam >= rmin) & (lam <= rmax))
-                        if len(rvalid[0]) == 0:
-                            report_print(report, 'No valid wavelengths.')
-                            continue
-                        if np.all(~np.isnan(props_s.wavelength.values[rvalid])):
-                            report_print(
-                                report, 'ERROR: complete overlap present.')
-                            warnings.warn(
-                                f'Window {window.name}: Complete overlap present for slit {skey} at order {n}.'
-                            )
-                            props_s.order.values[rvalid] = np.nan
-                            props_s.wavelength.values[rvalid] = np.nan
-                            props_s.resolution.values[rvalid] = np.nan
-                        elif np.any(~np.isnan(props_s.wavelength.values[rvalid])):
-                            report_print(
-                                report, 'Warning: partial overlap present.')
-                            warnings.warn(
-                                f'Window {window.name}: Partial overlap present for slit {skey} at order {n}.'
-                            )
-                            locs = np.where(
-                                ~np.isnan(props_s.wavelength.values[rvalid]))
-                            props_s.order.values[rvalid][locs] = np.nan
-                            props_s.wavelength.values[rvalid][locs] = np.nan
-                            props_s.resolution.values[rvalid][locs] = np.nan
+                    prod: Dataset = prod
+                    # it is guaranteed to be not None at this point
+                    props: Dataset = output.sel(slit=skey)
+                    wl_range = []
+                    for r in window.ranges:
+                        if slit.ranges is not None and len(slit.ranges) > 0:
+                            wl_range += common_range(slit.ranges, r)
                         else:
-                            report_print(report, 'OK.')
-                            props_s.order.values[rvalid] = n
-                            props_s.wavelength.values[rvalid] = lam[rvalid]
-                            props_s.resolution.values[rvalid] = lam[rvalid] / \
-                                dlam[rvalid]
-                    report_print(report, '')
-            report_print(report, f'Window {window.name} processed.')
+                            wl_range.append(r)
+                    for r in wl_range:
+                        rmin = r[0]
+                        rmax = r[1]
+                        grange = common_range(
+                            [(prod.attrs["gmin"], prod.attrs["gmax"])], gamma_range)
+                        if len(grange) != 1:
+                            if len(grange) > 1:
+                                warnings.warn(
+                                    f'Gamma range for slit {skey} is outside the window range {window.name}: Mosaic: {gamma_range}, Slit: ({prod.attrs["gmin"]}, {prod.attrs["gmax"]}).')
+                            continue
+                        grange = grange[0]
+
+                        bmin = np.min(beta_range)
+                        bmax = np.max(beta_range)
+                        gmin = np.min(grange)
+                        gmax = np.max(grange)
+                        prod_s = prod.sel(beta=slice(*beta_range),
+                                          gamma=slice(*grange))
+                        if prod_s.grating_product.values.size == 0:
+                            continue
+                        props_s = props.sel(beta=slice(*beta_range),
+                                            gamma=slice(*grange))
+
+                        n1_min, n1_max = sign_ceil(
+                            np.nanmin(prod_s.grating_product.values / rmin)), sign_floor(np.nanmax(prod_s.grating_product.values / rmin))
+                        n2_min, n2_max = sign_ceil(
+                            np.nanmin(prod_s.grating_product.values / rmax)), sign_floor(np.nanmax(prod_s.grating_product.values / rmax))
+                        n_min = int(min(n1_min, n2_min))
+                        n_max = int(max(n1_max, n2_max))
+                        if n_min > n_max:
+                            n_min, n_max = n_max, n_min
+
+                        report_print(report,
+                                     f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
+
+                        for n in range(n_min, n_max + 1):
+                            if n == 0:
+                                continue
+                            lam = prod_s.grating_product.values / n
+                            # d(nλ) = dn λ + n dλ, dn = 0
+                            dlam = prod_s.d_nx.values / n
+                            report_print(report,
+                                         f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=': ')
+                            sys.stdout.flush()
+                            rvalid = np.where((lam >= rmin) & (lam <= rmax))
+                            if len(rvalid[0]) == 0:
+                                report_print(report, 'No valid wavelengths.')
+                                continue
+                            if np.all(~np.isnan(props_s.wavelength.values[rvalid])):
+                                report_print(
+                                    report, 'ERROR: complete overlap present.')
+                                warnings.warn(
+                                    f'Window {window.name}: Complete overlap present for slit {skey} at order {n}.'
+                                )
+                                props_s.order.values[rvalid] = np.nan
+                                props_s.wavelength.values[rvalid] = np.nan
+                                props_s.resolution.values[rvalid] = np.nan
+                            elif np.any(~np.isnan(props_s.wavelength.values[rvalid])):
+                                report_print(
+                                    report, 'Warning: partial overlap present.')
+                                warnings.warn(
+                                    f'Window {window.name}: Partial overlap present for slit {skey} at order {n}.'
+                                )
+                                locs = np.where(
+                                    ~np.isnan(props_s.wavelength.values[rvalid]))
+                                props_s.order.values[rvalid][locs] = np.nan
+                                props_s.wavelength.values[rvalid][locs] = np.nan
+                                props_s.resolution.values[rvalid][locs] = np.nan
+                            else:
+                                report_print(report, 'OK.')
+                                props_s.order.values[rvalid] = n
+                                props_s.wavelength.values[rvalid] = lam[rvalid]
+                                props_s.resolution.values[rvalid] = lam[rvalid] / \
+                                    dlam[rvalid]
+                        report_print(report, '')
+                report_print(report, f'Window {window.name} processed.')
 
         if unique:
             valid = output['wavelength'].notnull()
@@ -916,13 +966,15 @@ class MisInstrumentModel(MisConfig):
             output = bout
         return output
 
-    def simulate(self,
-                 source_wl: np.ndarray, source_i: np.ndarray,
-                 camera: MisCamera = None, *,
-                 alpha: Optional[Numeric] = None,
-                 method: IntensityMethod = 'Integrate',
-                 report: bool = True,
-                 use_c: bool = True) -> Dataset:
+    def simulate(
+        self,
+        source_wl: np.ndarray, source_i: np.ndarray,
+        camera: Optional[MisCamera] = None, *,
+        alpha: Optional[Numeric] = None,
+        method: IntensityMethod = 'Integrate',
+        report: bool = True,
+        use_c: bool = True
+    ) -> Dataset:
         """## Simulate the instrument observation of a source spectrum.
 
         ### Args:
@@ -972,7 +1024,7 @@ class MisInstrumentModel(MisConfig):
         camera = self._camera
 
         if alpha is not None:
-            self._alpha = alpha
+            self._alpha = float(alpha)
 
         if camera.width is not None and camera.height is not None:  # if the camera projects a fixed size
             beta_grid = np.linspace(0, -self.mosaic.width, camera.width)
@@ -990,11 +1042,14 @@ class MisInstrumentModel(MisConfig):
         prods: Dict[str, Optional[Dataset]] = {}
         for slit in self.slits.keys():
             prod = self._grating_product_sim(
-                slit, self._alpha, beta_grid, gamma_grid)
+                slit, self._alpha, beta_grid, gamma_grid
+            )
             prods[slit] = prod
 
-        valid_keys = [k if v is not None else None for k,
-                      v in self.slits.items()]
+        valid_keys = [
+            k if v is not None else None for k,
+            v in self.slits.items()
+        ]
         valid_keys = list(filter(lambda x: x is not None, valid_keys))
         output = Dataset(
             {
@@ -1057,16 +1112,21 @@ class MisInstrumentModel(MisConfig):
                     bmax = np.max(beta_range)
                     gmin = np.min(grange)
                     gmax = np.max(grange)
-                    prod_s = prod.sel(beta=slice(*beta_range),
-                                      gamma=slice(*grange))
+                    prod_s = prod.sel(
+                        beta=slice(*beta_range),
+                        gamma=slice(*grange)
+                    )
 
                     if prod_s.grating_product.values.size == 0:
                         continue
 
-                    props_s = props.sel(beta=slice(*beta_range),
-                                        gamma=slice(*grange))
+                    props_s = props.sel(
+                        beta=slice(*beta_range),
+                        gamma=slice(*grange)
+                    )
                     intensities_s = output.total_intensity.sel(
-                        beta=slice(*beta_range), gamma=slice(*grange))
+                        beta=slice(*beta_range), gamma=slice(*grange)
+                    )
 
                     n1_min, n1_max = sign_ceil(
                         np.nanmin(prod_s.grating_product.values / rmin)), sign_floor(np.nanmax(prod_s.grating_product.values / rmin))
@@ -1077,16 +1137,20 @@ class MisInstrumentModel(MisConfig):
                     if n_min > n_max:
                         n_min, n_max = n_max, n_min
 
-                    report_print(report,
-                                 f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})')
+                    report_print(
+                        report,
+                        f'\tSlit {skey}: λ ({rmin:.0f}, {rmax:.0f}), γ ({gmin:.2f}, {gmax:.2f}), β ({bmin:.2f}, {bmax:.2f}), β (prod) ({prod_s.beta.values[0]:.2f}, {prod_s.beta.values[-1]:.2f}), γ (prod) ({prod_s.gamma.values[0]:.2f}, {prod_s.gamma.values[-1]:.2f}) Orders ({n_min}, {n_max})'
+                    )
 
                     for n in range(n_min, n_max + 1):
                         if n == 0:
                             continue
                         lam = prod_s.grating_product.values / n
                         dlam = prod_s.d_nx.values / n / 2
-                        report_print(report,
-                                     f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', ')
+                        report_print(
+                            report,
+                            f'\t\tλ Valid: ({rmin:.2f}, {rmax:.2f}), Calculated: ({np.nanmin(lam):.2f}, {np.nanmax(lam):.2f}), Order {n}', end=', '
+                        )
                         sys.stdout.flush()
                         rvalid = np.where((lam >= rmin) & (lam <= rmax))
                         if len(rvalid[0]) == 0:
@@ -1124,8 +1188,10 @@ class MisInstrumentModel(MisConfig):
                                 intensity = np.vectorize(
                                     calc_intensity)(llower, uupper)
                                 end = perf_counter_ns()
-                            report_print(report,
-                                         f'O({llower.size}): {(end - start)*1e-6:.3f} ms')
+                            report_print(
+                                report,
+                                f'O({llower.size}): {(end - start)*1e-6:.3f} ms'
+                            )
                         elif method == 'Nearest':
                             intensity = np.interp(lam[rvalid], source_wl, source_i) * \
                                 (dlam[rvalid] * 2)
@@ -1148,7 +1214,8 @@ class MisInstrumentModel(MisConfig):
                         # add noise
                         if camera.readout_noise is not None and camera.readout_noise > 0:  # readout noise
                             intensity += np.random.poisson(
-                                0, camera.readout_noise, intensity.shape)
+                                0, camera.readout_noise, intensity.shape
+                            )
                         intensity += dark_rate  # dark current
                         intensities_s.values[rvalid] += intensity
                         props_s.intensity.values[rvalid] += intensity
@@ -1176,12 +1243,18 @@ class MisInstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
+        fig, ax, slider = self._plot_lines(
+            False, self._alpha, wavelengths, mode='Mosaic',
+            default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs
+        )
         fig: plt.Figure = fig
         ax: plt.Axes = ax
-        im = ax.imshow(intensities.values, origin='lower', extent=[
-                       intensities.beta.values[0], intensities.beta.values[-1], intensities.gamma.values[0], intensities.gamma.values[-1]], cmap=cmap)
+        im = ax.imshow(
+            intensities.values, origin='lower', extent=[
+                intensities.beta.values[0], intensities.beta.values[-1], intensities.gamma.values[0], intensities.gamma.values[-1]
+            ],
+            cmap=cmap,
+        )
         # fig.subplots_adjust(bottom=0.7)
         cax = fig.add_axes([0.1, 0, 0.8, 0.01])
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
@@ -1190,7 +1263,14 @@ class MisInstrumentModel(MisConfig):
         cbar.formatter.set_useMathText(True)
         return fig, ax, cax
 
-    def intensity_plot_rgb(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, gamma: Numeric = 0.8, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def intensity_plot_rgb(
+        self,
+        input: Dataset,
+        wavelengths: Optional[List[int | MisFeatures]] = None, *,
+        default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'},
+        gamma: Numeric = 0.8,
+        **fig_kwargs
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """## Plot the intensity map on the mosaic plane.
 
         ### Args:
@@ -1204,8 +1284,11 @@ class MisInstrumentModel(MisConfig):
         ### Returns:
             - `Tuple[plt.Figure, plt.Axes, plt.Axes]`: Created figure and plot axis and colorbar axis objects.
         """
-        fig, ax, slider = self._plot_lines(False, self._alpha, wavelengths, mode='Mosaic',
-                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs)
+        fig, ax, slider = self._plot_lines(
+            False, self._alpha, wavelengths, mode='Mosaic',
+            default_style=default_style, labels=True, labelcolor='w',
+            fig_kwargs=fig_kwargs
+        )
         fig: plt.Figure = fig
         ax: plt.Axes = ax
         intensity: DataArray = input.total_intensity
@@ -1225,8 +1308,12 @@ class MisInstrumentModel(MisConfig):
             # print(f'Slit {k} processed: R ({np.nanmin(rgb_[:, :, 0])}:{np.nanmax(rgb_[:, :, 0])}), G ({np.nanmin(rgb_[:, :, 1])}:{np.nanmax(rgb_[:, :, 1])}), B ({np.nanmin(rgb_[:, :, 2])}:{np.nanmax(rgb_[:, :, 2])})')
             del temp, r, g, b
         rgb = np.clip(rgb, 0, 1)
-        _ = ax.imshow(rgb, origin='lower', extent=[
-            input.beta.values[0], input.beta.values[-1], input.gamma.values[0], input.gamma.values[-1]])
+        _ = ax.imshow(
+            rgb, origin='lower',
+            extent=[
+                input.beta.values[0], input.beta.values[-1], input.gamma.values[0], input.gamma.values[-1]
+            ],
+        )
         # fig.subplots_adjust(bottom=0.7)
         ax.legend(loc='upper left', bbox_to_anchor=(1, 1.0))
         return fig, ax
@@ -1250,15 +1337,24 @@ class MisInstrumentModel(MisConfig):
 
         def hook(this: MisInstrumentModel, fig: plt.Figure, ax: plt.Axes):
             intensity = this.simulate(
-                source_wl, source_i, method='Nearest', report=False)
-            im = ax.imshow(intensity.total_intensity.values, origin='lower', extent=[
-                intensity.beta.values[0], intensity.beta.values[-1], intensity.gamma.values[0], intensity.gamma.values[-1]], cmap=cmap)
+                source_wl, source_i, method='Nearest', report=False
+            )
+            im = ax.imshow(
+                intensity.total_intensity.values, origin='lower', extent=[
+                    # type: ignore
+                    intensity.beta.values[0], intensity.beta.values[-1], intensity.gamma.values[0], intensity.gamma.values[-1],
+                ],
+                cmap=cmap
+            )
             cbar = fig.colorbar(im, cax=cax[0], orientation='horizontal')
             cbar.set_label('Intensity (e$^-$)')
             cbar.formatter.set_useMathText(True)
 
-        fig, ax, slider = self._plot_lines(True, self._alpha, None, mode='Mosaic',
-                                           default_style=default_style, labels=True, labelcolor='w', fig_kwargs=fig_kwargs, hook=hook, setuphook=setuphook)
+        fig, ax, slider = self._plot_lines(
+            True, self._alpha, None, mode='Mosaic',
+            default_style=default_style, labels=True, labelcolor='w', 
+            fig_kwargs=fig_kwargs, hook=hook, setuphook=setuphook,
+        )
         plt.show()
 
     def order_map(self, input: Dataset, wavelengths: List[int | MisFeatures] = None, *, default_style={'ls': '-', 'lw': 0.5, 'ms': 0.2, 'color': 'black'}, **fig_kwargs) -> Tuple[plt.Figure, plt.Axes]:

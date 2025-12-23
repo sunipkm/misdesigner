@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Iterable, List, SupportsFloat as Numeric, Tuple
+from typing import Any, Iterable, List, SupportsFloat as Numeric, Tuple
 import numpy as np
 
 def find_nearest(array: Iterable, targetval: Numeric) -> tuple[int, Numeric]:
@@ -16,7 +16,7 @@ def find_nearest(array: Iterable, targetval: Numeric) -> tuple[int, Numeric]:
     idx = np.nanargmin(dif)
     return idx, array[idx]
 
-def common_range(r1: List[Tuple[int, int]], r2: Tuple[int, int]) -> List[Tuple[int, int]]:
+def common_range(r1: List[Tuple[Any, Any]], r2: Tuple[Any, Any]) -> List[Tuple[Any, Any]]:
     """finds the common range between two ranges."""
     out = []
     for r in r1:
